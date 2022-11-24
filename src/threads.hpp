@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <thread>
 #include <vector>
 
@@ -9,7 +10,7 @@
 struct ThreadState {
   int buffer_size;
   std::vector<std::thread *> *consumer_threads;
-  std::vector<AEDAT::PolarityEvent> events;
+  std::vector<AEDAT::PolarityEvent> &events;
   queue<std::vector<AEDAT::PolarityEvent>> *event_queue;
   std::atomic_long *sum_value;
 };
@@ -17,10 +18,10 @@ struct ThreadState {
 void consumer(queue<std::vector<AEDAT::PolarityEvent>> *in,
               std::atomic_long *sum);
 
-void producer(std::vector<AEDAT::PolarityEvent> events,
+void producer(std::vector<AEDAT::PolarityEvent> &events,
               queue<std::vector<AEDAT::PolarityEvent>> *out, int buffer_size);
 
-ThreadState prepare_threads(std::vector<AEDAT::PolarityEvent> events,
+ThreadState prepare_threads(std::vector<AEDAT::PolarityEvent> &events,
                             int buffer_size, int n_consumers);
 
 size_t run_threads(ThreadState state);

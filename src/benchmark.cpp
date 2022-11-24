@@ -17,7 +17,7 @@ using namespace std::chrono_literals;
 // Coroutines
 //
 Generator<AEDAT::PolarityEvent>
-event_generator(std::vector<AEDAT::PolarityEvent> events) {
+event_generator(std::vector<AEDAT::PolarityEvent> &events) {
   for (auto event : events) {
     co_yield event;
   }
@@ -40,14 +40,16 @@ size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
 // }
 
 template <typename T>
-std::tuple<float, float> bench_fun(std::function<size_t(T)> f,
+std::tuple<float, float> bench_fun(std::function<size_t(T &)> f,
                                    std::function<T(void)> prepare_f,
                                    size_t check, int n) {
   auto times = std::vector<size_t>();
+
   for (int i = 0; i < n; i++) {
+    auto prepared = prepare_f();
     auto before = std::chrono::high_resolution_clock::now();
     try {
-      size_t out = f(prepare_f());
+      size_t out = f(prepared);
       if (check != out) {
         std::cerr << check << " != " << out;
         throw std::runtime_error("");
@@ -96,10 +98,10 @@ std::vector<Result> run_once(int n_events, int n_runs,
 
   // Coroutines
   auto [mean1, std1] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
-      [&](std::vector<AEDAT::PolarityEvent> events) {
+      [&](std::vector<AEDAT::PolarityEvent> &events) {
         return coroutine_sum(event_generator(events));
       },
-      [events] { return events; }, check, n_runs);
+      [&events] { return events; }, check, n_runs);
   results.push_back({"c", n_events, n_runs, mean1, std1});
 
   // Threads
@@ -108,7 +110,7 @@ std::vector<Result> run_once(int n_events, int n_runs,
     for (int t : threads) {
       auto [mean2, std2] = bench_fun<ThreadState>(
           run_threads,
-          [events, t, buffer_size] {
+          [&events, buffer_size, t] {
             return prepare_threads(events, buffer_size, t);
           },
           check, n_runs);
@@ -123,11 +125,12 @@ std::vector<Result> run_once(int n_events, int n_runs,
 int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
 
-  int N = 64;
-  std::vector<int> buffer_sizes = {256, 512, 1024, 2048, 4096, 8192};
+  int N = 2;
+  // std::vector<int> buffer_sizes = {256, 512, 1024, 2048, 4096, 8192};
+  std::vector<int> buffer_sizes = {1024};
 
   auto results = std::vector<Result>();
-  for (int i = 0; i < 28; i++) {
+  for (int i = 0; i < 16; i++) {
     std::cout << "Running " << (2 << i) << " repeated " << N << std::endl;
     auto r = run_once(2 << i, N, buffer_sizes);
     results.insert(results.end(), r.begin(), r.end());

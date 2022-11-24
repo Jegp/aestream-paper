@@ -14,14 +14,14 @@ void consumer(queue<std::vector<AEDAT::PolarityEvent>> *in,
   }
 }
 
-void producer(std::vector<AEDAT::PolarityEvent> events,
+void producer(std::vector<AEDAT::PolarityEvent> &events,
               queue<std::vector<AEDAT::PolarityEvent>> *out, int buffer_size) {
-  auto buffer = std::vector<AEDAT::PolarityEvent>();
+  auto buffer = std::vector<AEDAT::PolarityEvent>(buffer_size);
   for (auto event : events) {
     buffer.push_back(event);
     if (buffer.size() >= buffer_size) {
-      out->push(std::vector(buffer));
-      buffer.clear();
+      out->push(buffer);
+      buffer = std::vector<AEDAT::PolarityEvent>(buffer_size);
     }
   }
 
@@ -31,7 +31,7 @@ void producer(std::vector<AEDAT::PolarityEvent> events,
   out->shutdown();
 }
 
-ThreadState prepare_threads(std::vector<AEDAT::PolarityEvent> events,
+ThreadState prepare_threads(std::vector<AEDAT::PolarityEvent> &events,
                             int buffer_size, int n_consumers) {
   const auto event_queue = new queue<std::vector<AEDAT::PolarityEvent>>();
   const auto sum_value = new std::atomic_long(0);
@@ -43,13 +43,13 @@ ThreadState prepare_threads(std::vector<AEDAT::PolarityEvent> events,
 }
 
 size_t run_threads(ThreadState state) {
-  auto p_thread =
-      std::thread(producer, state.events, state.event_queue, state.buffer_size);
+  auto p_thread = std::thread(producer, std::ref(state.events),
+                              state.event_queue, state.buffer_size);
 
   p_thread.join();
 
   std::thread **threads = state.consumer_threads->data();
-  for (int i = 0; i < state.consumer_threads->size(); i++) {
+  for (size_t i = 0; i < state.consumer_threads->size(); i++) {
     threads[i]->join();
   }
   return state.sum_value->load();
