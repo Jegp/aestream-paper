@@ -1,0 +1,3 @@
+[submodule "aestream"]
+	path = aestream
+	url = ./aestream
