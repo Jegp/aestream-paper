@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 #include <ctime>
+#include <filesystem>
 #include <functional>
 #include <numeric>
 #include <sstream>
@@ -31,14 +32,8 @@ size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
 }
 
 //
-// Buffers
+// Benchmarking function
 //
-// void event_queue(std::tuple<std::vector<AEDAT::PolarityEvent>>,
-//                  queue<std::vector<AEDAT::PolarityEvent>> tuple,
-//                  int buffer_size) {
-//   return;
-// }
-
 template <typename T>
 std::tuple<float, float> bench_fun(std::function<size_t(T &)> f,
                                    std::function<T(void)> prepare_f,
@@ -75,14 +70,16 @@ std::tuple<float, float> bench_fun(std::function<size_t(T &)> f,
 
 struct Result {
   std::string name;
-  int events;
-  int n;
+  size_t threads;
+  size_t buffer_size;
+  size_t events;
+  size_t n;
   float mean;
   float std;
 };
 
-std::vector<Result> run_once(int n_events, int n_runs,
-                             std::vector<int> buffer_sizes) {
+std::vector<Result> run_once(size_t n_events, size_t n_runs,
+                             std::vector<size_t> buffer_sizes) {
   auto events = std::vector<AEDAT::PolarityEvent>();
   auto results = std::vector<Result>();
   size_t check = 0;
@@ -102,11 +99,11 @@ std::vector<Result> run_once(int n_events, int n_runs,
         return coroutine_sum(event_generator(events));
       },
       [&events] { return events; }, check, n_runs);
-  results.push_back({"c", n_events, n_runs, mean1, std1});
+  results.push_back({"c", 0, 0, n_events, n_runs, mean1, std1});
 
   // Threads
-  std::vector<int> threads = {1, 2, 4, 8, 16};
-  for (int buffer_size : buffer_sizes) {
+  std::vector<int> threads = {1, 2, 4, 8};
+  for (size_t buffer_size : buffer_sizes) {
     for (int t : threads) {
       auto [mean2, std2] = bench_fun<ThreadState>(
           run_threads,
@@ -114,9 +111,7 @@ std::vector<Result> run_once(int n_events, int n_runs,
             return prepare_threads(events, buffer_size, t);
           },
           check, n_runs);
-      std::ostringstream ss;
-      ss << "t" << t << "x" << buffer_size;
-      results.push_back({ss.str(), n_events, n_runs, mean2, std2});
+      results.push_back({"t", t, buffer_size, n_events, n_runs, mean2, std2});
     }
   }
   return results;
@@ -124,22 +119,22 @@ std::vector<Result> run_once(int n_events, int n_runs,
 
 int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
+  std::filesystem::remove("results.csv");
 
-  int N = 2;
-  // std::vector<int> buffer_sizes = {256, 512, 1024, 2048, 4096, 8192};
-  std::vector<int> buffer_sizes = {1024};
+  int N = 512;
+  std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
-  auto results = std::vector<Result>();
-  for (int i = 0; i < 16; i++) {
-    std::cout << "Running " << (2 << i) << " repeated " << N << std::endl;
-    auto r = run_once(2 << i, N, buffer_sizes);
-    results.insert(results.end(), r.begin(), r.end());
+  for (int i = 10; i < 32; i++) {
+    std::cout << "Running " << (2 << i) << " repeated " << N << " times"
+              << std::endl;
+    auto results = run_once(2 << i, N, buffer_sizes);
+
+    std::ofstream out_file("results.csv", std::ios_base::app);
+    for (auto r : results) {
+      out_file << r.name << "," << r.events << "," << r.threads << ","
+               << r.buffer_size << "," << r.n << "," << r.mean << "," << r.std
+               << "\n";
+    }
+    out_file.close();
   }
-
-  std::ofstream out_file("results.csv");
-  for (auto r : results) {
-    out_file << r.name << "," << r.events << "," << r.n << "," << r.mean << ","
-             << r.std << "\n";
-  }
-  out_file.close();
 }

@@ -7,21 +7,23 @@
 #include "aedat.hpp"
 #include "blocking_queue.cpp"
 
+using EventVec = std::vector<AEDAT::PolarityEvent>;
+using EventThreads = std::vector<std::thread *>;
+using EventPtr = std::unique_ptr<EventVec>;
+
 struct ThreadState {
-  int buffer_size;
-  std::vector<std::thread *> *consumer_threads;
-  std::vector<AEDAT::PolarityEvent> &events;
-  queue<std::vector<AEDAT::PolarityEvent>> *event_queue;
+  const size_t buffer_size;
+  queue<EventPtr> *event_queue;
+  const EventThreads *consumer_threads;
+  const EventVec &events;
   std::atomic_long *sum_value;
 };
 
-void consumer(queue<std::vector<AEDAT::PolarityEvent>> *in,
-              std::atomic_long *sum);
+void consumer(queue<EventPtr> *in, std::atomic_long *sum);
 
-void producer(std::vector<AEDAT::PolarityEvent> &events,
-              queue<std::vector<AEDAT::PolarityEvent>> *out, int buffer_size);
+void producer(const EventVec &events, queue<EventPtr> *out, size_t buffer_size);
 
-ThreadState prepare_threads(std::vector<AEDAT::PolarityEvent> &events,
-                            int buffer_size, int n_consumers);
+ThreadState prepare_threads(const EventVec &events, size_t buffer_size,
+                            size_t n_consumers);
 
-size_t run_threads(ThreadState state);
+size_t run_threads(const ThreadState &state);

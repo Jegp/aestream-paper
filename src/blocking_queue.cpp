@@ -1,7 +1,9 @@
 #include <condition_variable>
 #include <deque>
+#include <iostream>
 #include <mutex>
 #include <optional>
+
 // Thanks to
 // https://stackoverflow.com/questions/39512514/c-thread-safe-queue-shutdown
 template <typename T> class queue {
@@ -25,10 +27,10 @@ public:
       return std::nullopt;
     }
   }
-  void push(T const &value) {
+  void push(T &value) {
     {
       std::unique_lock<std::mutex> lock(this->d_mutex);
-      d_queue.push_front(value);
+      d_queue.push_back(std::move(value));
     }
     this->d_condition.notify_one();
   }
