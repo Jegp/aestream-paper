@@ -102,13 +102,13 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   results.push_back({"c", 0, 0, n_events, n_runs, mean1, std1});
 
   // Threads
-  std::vector<int> threads = {1, 2, 4, 8};
+  std::vector<size_t> threads = {1, 2, 4, 8};
   for (size_t buffer_size : buffer_sizes) {
-    for (int t : threads) {
+    for (size_t t : threads) {
       auto [mean2, std2] = bench_fun<ThreadState>(
-          run_threads,
-          [&events, buffer_size, t] {
-            return prepare_threads(events, buffer_size, t);
+          [](ThreadState &t) { return t.run(); },
+          [&] {
+            return ThreadState{events, buffer_size, t};
           },
           check, n_runs);
       results.push_back({"t", t, buffer_size, n_events, n_runs, mean2, std2});

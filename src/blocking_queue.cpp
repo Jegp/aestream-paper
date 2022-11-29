@@ -30,7 +30,7 @@ public:
   void push(T &value) {
     {
       std::unique_lock<std::mutex> lock(this->d_mutex);
-      d_queue.push_back(std::move(value));
+      d_queue.emplace_back(std::move(value));
     }
     this->d_condition.notify_one();
   }
