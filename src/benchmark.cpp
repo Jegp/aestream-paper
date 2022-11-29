@@ -18,14 +18,14 @@ using namespace std::chrono_literals;
 // Coroutines
 //
 Generator<AEDAT::PolarityEvent>
-event_generator(std::vector<AEDAT::PolarityEvent> &events) {
-  for (auto event : events) {
+event_generator(const std::vector<AEDAT::PolarityEvent> &events) {
+  for (const auto &event : events) {
     co_yield event;
   }
 }
 size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
   size_t count = 0;
-  for (auto event : events) {
+  for (const auto &event : events) {
     count += event.x + event.y;
   }
   return count;
@@ -105,12 +105,12 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   std::vector<size_t> threads = {1, 2, 4, 8};
   for (size_t buffer_size : buffer_sizes) {
     for (size_t t : threads) {
-      auto [mean2, std2] = bench_fun<ThreadState>(
-          [](ThreadState &t) { return t.run(); },
-          [&] {
-            return ThreadState{events, buffer_size, t};
-          },
-          check, n_runs);
+      auto [mean2, std2] =
+          bench_fun<ThreadState>([](ThreadState &t) { return t.run(); },
+                                 [&] {
+                                   return ThreadState{events, buffer_size, t};
+                                 },
+                                 check, n_runs);
       results.push_back({"t", t, buffer_size, n_events, n_runs, mean2, std2});
     }
   }
@@ -121,7 +121,7 @@ int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
   std::filesystem::remove("results.csv");
 
-  int N = 512;
+  int N = 256;
   std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
   for (int i = 10; i < 32; i++) {
