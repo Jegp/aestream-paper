@@ -32,6 +32,17 @@ size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
 }
 
 //
+// One thread one function
+//
+size_t one_thread(const std::vector<AEDAT::PolarityEvent> &events) {
+  size_t count = 0;
+  for (const auto &event : events) {
+        count += event.x + event.y;
+  }
+  return count;
+}
+
+//
 // Benchmarking function
 //
 template <typename T>
@@ -100,6 +111,14 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
       },
       [&events] { return events; }, check, n_runs);
   results.push_back({"c", 0, 0, n_events, n_runs, mean1, std1});
+
+  // One thread one function
+  auto [mean3, std3] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
+      [&](std::vector<AEDAT::PolarityEvent> &events) {
+        return one_thread(events);
+      },
+      [&events] { return events; }, check, n_runs);
+  results.push_back({"o", 0, 0, n_events, n_runs, mean3, std3});
 
   // Threads
   std::vector<size_t> threads = {1, 2, 4, 8};
