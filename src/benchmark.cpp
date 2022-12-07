@@ -31,6 +31,18 @@ size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
   return count;
 }
 
+size_t coroutine_sum_slow(Generator<AEDAT::PolarityEvent> events) {
+  size_t count = 0;
+  for (const auto &event : events) {
+    for (int i = 0; i < event.x; ++i) {
+      for (int j = 0; j < event.y; ++j) {
+        count += event.x * event.x * event.y + event.y;
+      }
+    }
+  }
+  return count;
+}
+
 //
 // Benchmarking function
 //
@@ -82,36 +94,62 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
                              std::vector<size_t> buffer_sizes) {
   auto events = std::vector<AEDAT::PolarityEvent>();
   auto results = std::vector<Result>();
-  size_t check = 0;
+  size_t check_simple = 0;
+  size_t check_complex = 0;
   const int resolution = RAND_MAX / 1024;
 
   for (size_t i = 0; i < n_events; i++) {
     const uint16_t x = std::rand() / resolution;
     const uint16_t y = std::rand() / resolution;
-    check += x + y;
+    check_simple += x + y;
+    for (int j = 0; j < x; ++j) {
+      for (int j = 0; j < y; ++j) {
+        check_complex += x * x * y + y;
+      }
+    }
     auto event = AEDAT::PolarityEvent{i, x, y, true, true};
     events.push_back(event);
   }
 
   // Coroutines
-  auto [mean1, std1] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
+  auto [cm1, cs1] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
       [&](std::vector<AEDAT::PolarityEvent> &events) {
         return coroutine_sum(event_generator(events));
       },
-      [&events] { return events; }, check, n_runs);
-  results.push_back({"c", 0, 0, n_events, n_runs, mean1, std1});
+      [&events] { return events; }, check_simple, n_runs);
+  results.push_back({"c_simple", 0, 0, n_events, n_runs, cm1, cs1});
+
+  auto [cm2, cs2] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
+      [&](std::vector<AEDAT::PolarityEvent> &events) {
+        return coroutine_sum(event_generator(events));
+      },
+      [&events] { return events; }, check_simple, n_runs);
+  results.push_back({"c_simple", 0, 0, n_events, n_runs, cm2, cm2});
 
   // Threads
   std::vector<size_t> threads = {1, 2, 4, 8};
   for (size_t buffer_size : buffer_sizes) {
     for (size_t t : threads) {
-      auto [mean2, std2] =
-          bench_fun<ThreadState>([](ThreadState &t) { return t.run(); },
-                                 [&] {
-                                   return ThreadState{events, buffer_size, t};
-                                 },
-                                 check, n_runs);
-      results.push_back({"t", t, buffer_size, n_events, n_runs, mean2, std2});
+      auto [mean2, std2] = bench_fun<ThreadState>(
+          [](ThreadState &t) { return t.run(); },
+          [&] {
+            return ThreadState{"simple", events, buffer_size, t};
+          },
+          check_simple, n_runs);
+      results.push_back(
+          {"t_simple", t, buffer_size, n_events, n_runs, mean2, std2});
+    }
+  }
+  for (size_t buffer_size : buffer_sizes) {
+    for (size_t t : threads) {
+      auto [mean2, std2] = bench_fun<ThreadState>(
+          [](ThreadState &t) { return t.run(); },
+          [&] {
+            return ThreadState{"complex", events, buffer_size, t};
+          },
+          check_simple, n_runs);
+      results.push_back(
+          {"t_complex", t, buffer_size, n_events, n_runs, mean2, std2});
     }
   }
   return results;
@@ -119,15 +157,17 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
 
 int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
-  std::filesystem::remove("results.csv");
+  // std::filesystem::remove("results.csv");
 
-  int N = 256;
+  int N = 64;
   std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
-  for (int i = 10; i < 32; i++) {
-    std::cout << "Running " << (2 << i) << " repeated " << N << " times"
+  // for (int i = 10; i < 32; i++) {
+  for (int i = 75; i < 110; i++) {
+    auto n_events = long(pow(1.2, i));
+    std::cout << "Running " << n_events << " repeated " << N << " times"
               << std::endl;
-    auto results = run_once(2 << i, N, buffer_sizes);
+    auto results = run_once(n_events, N, buffer_sizes);
 
     std::ofstream out_file("results.csv", std::ios_base::app);
     for (auto r : results) {

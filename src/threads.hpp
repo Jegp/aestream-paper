@@ -19,11 +19,13 @@ class ThreadState {
   std::atomic_long sum_value;
 
   void consumer();
+  void consumer_complex();
   static EventPtr reserve_buffer(size_t buffer_size);
   void producer();
 
 public:
-  ThreadState(const EventVec &ev, size_t buf_size, size_t n_consumers);
+  ThreadState(const std::string &task, const EventVec &ev, size_t buf_size,
+              size_t n_consumers);
 
   size_t run();
 };

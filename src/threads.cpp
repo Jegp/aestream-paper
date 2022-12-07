@@ -4,9 +4,32 @@ void ThreadState::consumer() {
   while (true) {
     auto opt = event_queue.pop();
     if (opt.has_value()) {
+      size_t sum = 0;
       for (const auto &event : *opt.value()) {
-        sum_value.fetch_add(event.x + event.y);
+        sum += event.x + event.y;
       }
+      sum_value.fetch_add(sum);
+    } else {
+      return;
+    }
+  }
+}
+
+void ThreadState::consumer_complex() {
+  while (true) {
+    auto opt = event_queue.pop();
+    if (opt.has_value()) {
+      size_t sum = 0;
+      for (const auto &event : *opt.value()) {
+        size_t val = 0;
+        for (int i = 0; i < event.x; ++i) {
+          for (int j = 0; j < event.y; ++j) {
+            val += event.x * event.x * event.y + event.y;
+          }
+        }
+        sum += val;
+      }
+      sum_value.fetch_add(sum);
     } else {
       return;
     }
@@ -35,13 +58,16 @@ void ThreadState::producer() {
   event_queue.shutdown();
 }
 
-ThreadState::ThreadState(const EventVec &ev, size_t buf_size, size_t n_consumers) :
-buffer_size{buf_size},
-events{ev},
-sum_value{0}
-{
+ThreadState::ThreadState(const std::string &task, const EventVec &ev,
+                         size_t buf_size, size_t n_consumers)
+    : buffer_size{buf_size}, events{ev}, sum_value{0} {
   for (size_t i = 0; i < n_consumers; i++) {
-    consumer_threads.emplace_back(std::thread{&ThreadState::consumer, this});
+    if (task == "simple") {
+      consumer_threads.emplace_back(std::thread{&ThreadState::consumer, this});
+    } else {
+      consumer_threads.emplace_back(
+          std::thread{&ThreadState::consumer_complex, this});
+    }
   }
 }
 
@@ -50,7 +76,7 @@ size_t ThreadState::run() {
 
   p_thread.join();
 
-  for (auto &thread: consumer_threads) {
+  for (auto &thread : consumer_threads) {
     thread.join();
   }
   return sum_value.load();
