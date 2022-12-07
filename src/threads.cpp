@@ -5,7 +5,16 @@ void ThreadState::consumer() {
     auto opt = event_queue.pop();
     if (opt.has_value()) {
       for (const auto &event : *opt.value()) {
-        sum_value.fetch_add(event.x + event.y);
+
+        size_t val = 0;
+        for (int i = 0; i < event.x; ++i) {
+          for (int j = 0; j < event.y; ++j) {
+            val += event.x * event.x * event.y + event.y;
+          }
+        }
+
+
+        sum_value.fetch_add(val);
       }
     } else {
       return;

@@ -26,7 +26,26 @@ event_generator(const std::vector<AEDAT::PolarityEvent> &events) {
 size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
   size_t count = 0;
   for (const auto &event : events) {
-    count += event.x + event.y;
+    for (int i = 0; i < event.x; ++i) {
+      for (int j = 0; j < event.y; ++j) {
+        count += event.x * event.x * event.y + event.y;
+      }
+    }
+  }
+  return count;
+}
+
+//
+// One thread one function
+//
+size_t one_thread(const std::vector<AEDAT::PolarityEvent> &events) {
+  size_t count = 0;
+  for (const auto &event : events) {
+    for (int i = 0; i < event.x; ++i) {
+      for (int j = 0; j < event.y; ++j) {
+        count += event.x * event.x * event.y + event.y;
+      }
+    }
   }
   return count;
 }
@@ -88,7 +107,13 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   for (size_t i = 0; i < n_events; i++) {
     const uint16_t x = std::rand() / resolution;
     const uint16_t y = std::rand() / resolution;
-    check += x + y;
+
+    for (int j = 0; j < x; ++j) {
+      for (int j = 0; j < y; ++j) {
+        check += x * x * y + y;
+      }
+    }
+
     auto event = AEDAT::PolarityEvent{i, x, y, true, true};
     events.push_back(event);
   }
@@ -100,6 +125,14 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
       },
       [&events] { return events; }, check, n_runs);
   results.push_back({"c", 0, 0, n_events, n_runs, mean1, std1});
+
+  // One thread one function
+  auto [mean3, std3] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
+      [&](std::vector<AEDAT::PolarityEvent> &events) {
+        return one_thread(events);
+      },
+      [&events] { return events; }, check, n_runs);
+  results.push_back({"o", 0, 0, n_events, n_runs, mean3, std3});
 
   // Threads
   std::vector<size_t> threads = {1, 2, 4, 8};
@@ -121,10 +154,10 @@ int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
   std::filesystem::remove("results.csv");
 
-  int N = 256;
+  int N = 8;
   std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
-  for (int i = 10; i < 32; i++) {
+  for (int i = 16; i < 17; i++) {
     std::cout << "Running " << (2 << i) << " repeated " << N << " times"
               << std::endl;
     auto results = run_once(2 << i, N, buffer_sizes);
