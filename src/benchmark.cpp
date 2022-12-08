@@ -11,6 +11,7 @@
 #include "generator.hpp"
 
 #include "threads.hpp"
+#include "task.hpp"
 
 using namespace std::chrono_literals;
 
@@ -23,22 +24,12 @@ event_generator(const std::vector<AEDAT::PolarityEvent> &events) {
     co_yield event;
   }
 }
+
+template<class Task>
 size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
   size_t count = 0;
   for (const auto &event : events) {
-    count += event.x + event.y;
-  }
-  return count;
-}
-
-size_t coroutine_sum_slow(Generator<AEDAT::PolarityEvent> events) {
-  size_t count = 0;
-  for (const auto &event : events) {
-    for (int i = 0; i < event.x; ++i) {
-      for (int j = 0; j < event.y; ++j) {
-        count += event.x * event.x * event.y + event.y;
-      }
-    }
+    count += Task::apply(event.x, event.y);
   }
   return count;
 }
@@ -101,57 +92,48 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   for (size_t i = 0; i < n_events; i++) {
     const uint16_t x = std::rand() / resolution;
     const uint16_t y = std::rand() / resolution;
-    check_simple += x + y;
-    for (int j = 0; j < x; ++j) {
-      for (int j = 0; j < y; ++j) {
-        check_complex += x * x * y + y;
-      }
-    }
+    check_simple += Task::Simple::apply(x, y);
+    check_complex += Task::Complex::apply(x, y);
     auto event = AEDAT::PolarityEvent{i, x, y, true, true};
     events.push_back(event);
   }
 
   // Coroutines
-  auto [cm1, cs1] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
-      [&](std::vector<AEDAT::PolarityEvent> &events) {
-        return coroutine_sum(event_generator(events));
-      },
-      [&events] { return events; }, check_simple, n_runs);
-  results.push_back({"c_simple", 0, 0, n_events, n_runs, cm1, cs1});
+  auto run_coroutine = [&](auto task, size_t check, const std::string &name) {
+    auto [mean, std] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
+        [&](std::vector<AEDAT::PolarityEvent> &events) {
+          return coroutine_sum<decltype(task)>(event_generator(events));
+        },
+        [&events] { return events; }, check, n_runs);
+    results.push_back({name, 0, 0, n_events, n_runs, mean, std});
+  };
 
-  auto [cm2, cs2] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
-      [&](std::vector<AEDAT::PolarityEvent> &events) {
-        return coroutine_sum(event_generator(events));
-      },
-      [&events] { return events; }, check_simple, n_runs);
-  results.push_back({"c_simple", 0, 0, n_events, n_runs, cm2, cm2});
+  run_coroutine(Task::Simple{}, check_simple, "c_simple");
+  run_coroutine(Task::Complex{}, check_complex, "c_complex");
+
 
   // Threads
+
+  auto run_threads = [&](auto task, size_t check, const std::string &name, size_t t, size_t buffer_size) {
+      using TS = ThreadState<decltype(task)>;
+      auto [mean, std] = bench_fun<TS>(
+          [](TS &t) { return t.run(); },
+          [&] {
+            return TS{events, buffer_size, t};
+          },
+          check, n_runs);
+      results.push_back(
+          {name, t, buffer_size, n_events, n_runs, mean, std});
+  };
+
   std::vector<size_t> threads = {1, 2, 4, 8};
   for (size_t buffer_size : buffer_sizes) {
     for (size_t t : threads) {
-      auto [mean2, std2] = bench_fun<ThreadState>(
-          [](ThreadState &t) { return t.run(); },
-          [&] {
-            return ThreadState{"simple", events, buffer_size, t};
-          },
-          check_simple, n_runs);
-      results.push_back(
-          {"t_simple", t, buffer_size, n_events, n_runs, mean2, std2});
+      run_threads(Task::Simple{}, check_simple, "t_simple", t, buffer_size);
+      run_threads(Task::Complex{}, check_complex, "t_complex", t, buffer_size);
     }
   }
-  for (size_t buffer_size : buffer_sizes) {
-    for (size_t t : threads) {
-      auto [mean2, std2] = bench_fun<ThreadState>(
-          [](ThreadState &t) { return t.run(); },
-          [&] {
-            return ThreadState{"complex", events, buffer_size, t};
-          },
-          check_simple, n_runs);
-      results.push_back(
-          {"t_complex", t, buffer_size, n_events, n_runs, mean2, std2});
-    }
-  }
+
   return results;
 }
 

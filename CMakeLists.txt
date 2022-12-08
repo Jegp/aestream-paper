@@ -13,5 +13,5 @@ include_directories("aestream/include")
 add_subdirectory("aestream")
 
 # AEDAT4 processing
-add_executable(aestream-paper src/benchmark.cpp src/blocking_queue.cpp src/threads.cpp src/threads.hpp)
+add_executable(aestream-paper src/benchmark.cpp src/blocking_queue.cpp)
 target_link_libraries(aestream-paper PUBLIC aestream_lib)
