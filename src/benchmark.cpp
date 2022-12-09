@@ -1,38 +1,52 @@
-#include <cassert>
-#include <chrono>
-#include <cmath>
-#include <ctime>
-#include <filesystem>
-#include <functional>
+#include <iostream>
+#include <vector>
 #include <numeric>
-#include <sstream>
 
-#include "aedat.hpp"
-#include "generator.hpp"
+#include <cppcoro/task.hpp>
+#include <cppcoro/sync_wait.hpp>
+#include <cppcoro/generator.hpp>
+#include <cppcoro/when_all.hpp>
 
 #include "threads.hpp"
 #include "task.hpp"
 
-using namespace std::chrono_literals;
+using cppcoro::generator;
 
 //
 // Coroutines
 //
-Generator<AEDAT::PolarityEvent>
-event_generator(const std::vector<AEDAT::PolarityEvent> &events) {
-  for (const auto &event : events) {
+generator<Event>
+event_generator(const std::vector<Event> &events) {
+  for (auto event : events) {
     co_yield event;
   }
 }
 
 template<class Task>
-size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
+cppcoro::task<size_t> coroutine_sum(generator<Event> events) {
   size_t count = 0;
   for (const auto &event : events) {
     count += Task::apply(event.x, event.y);
   }
-  return count;
+  co_return count;
 }
+
+template<class Task>
+cppcoro::task<size_t> coroutine_sum_shared_generator(generator<Event> &events) {
+  size_t count = 0;
+  for (const auto &event : events) {
+    count += Task::apply(event.x, event.y);
+  }
+  co_return count;
+}
+
+cppcoro::task<size_t> coroutine_aggregate_results(std::vector<cppcoro::task<size_t>> &&tasks) {
+    std::vector<size_t> results = co_await when_all(std::move(tasks));
+    size_t result{};
+    for (auto r: results) result += r;
+    co_return result;
+}
+
 
 //
 // Benchmarking function
@@ -83,7 +97,7 @@ struct Result {
 
 std::vector<Result> run_once(size_t n_events, size_t n_runs,
                              std::vector<size_t> buffer_sizes) {
-  auto events = std::vector<AEDAT::PolarityEvent>();
+  auto events = std::vector<Event>();
   auto results = std::vector<Result>();
   size_t check_simple = 0;
   size_t check_complex = 0;
@@ -94,15 +108,15 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
     const uint16_t y = std::rand() / resolution;
     check_simple += Task::Simple::apply(x, y);
     check_complex += Task::Complex::apply(x, y);
-    auto event = AEDAT::PolarityEvent{i, x, y, true, true};
+    auto event = Event{x, y};
     events.push_back(event);
   }
 
-  // Coroutines
+  // Coroutines, single producer single consumer
   auto run_coroutine = [&](auto task, size_t check, const std::string &name) {
-    auto [mean, std] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
-        [&](std::vector<AEDAT::PolarityEvent> &events) {
-          return coroutine_sum<decltype(task)>(event_generator(events));
+    auto [mean, std] = bench_fun<std::vector<Event>>(
+        [&](std::vector<Event> &events) {
+          return cppcoro::sync_wait(coroutine_sum<decltype(task)>(event_generator(events)));
         },
         [&events] { return events; }, check, n_runs);
     results.push_back({name, 0, 0, n_events, n_runs, mean, std});
@@ -111,6 +125,46 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   run_coroutine(Task::Simple{}, check_simple, "c_simple");
   run_coroutine(Task::Complex{}, check_complex, "c_complex");
 
+  // Coroutines, single producer multiple consumers
+  auto run_coroutine_single_producer_multiple_consumers = [&](auto task, size_t check, const std::string &name, size_t t) {
+    auto [mean, std] = bench_fun<std::vector<Event>>(
+        [&](std::vector<Event> &events) {
+            std::vector<cppcoro::task<size_t>> coroutine_tasks;
+
+            cppcoro::generator<Event> generator{event_generator(events)};
+
+            for (int i = 0; i < t; ++i) {
+                coroutine_tasks.emplace_back(coroutine_sum_shared_generator<decltype(task)>(generator));
+            }
+
+            auto coroutine_task = coroutine_aggregate_results(std::move(coroutine_tasks));
+            return cppcoro::sync_wait(coroutine_task);
+        },
+        [&events] { return events; }, check, n_runs);
+    results.push_back({name, 0, 0, n_events, n_runs, mean, std});
+  };
+
+  // This call crashes
+  // run_coroutine_single_producer_multiple_consumers(Task::Simple{}, check_simple, "c_single_producer_multiple_consumers_simple", 2);
+
+  // Coroutines, multiple producers multiple consumers
+  auto run_coroutine_multiple_producer_multiple_consumers = [&](auto task, size_t check, const std::string &name, size_t t) {
+    auto [mean, std] = bench_fun<std::vector<Event>>(
+        [&](std::vector<Event> &events) {
+            std::vector<cppcoro::task<size_t>> coroutine_tasks;
+
+            for (int i = 0; i < t; ++i) {
+                coroutine_tasks.emplace_back(coroutine_sum<decltype(task)>(std::move(event_generator(events))));
+            }
+
+            auto coroutine_task = coroutine_aggregate_results(std::move(coroutine_tasks));
+            return cppcoro::sync_wait(coroutine_task);
+        },
+        [&events] { return events; }, check, n_runs);
+    results.push_back({name, 0, 0, n_events, n_runs, mean, std});
+  };
+
+  run_coroutine_multiple_producer_multiple_consumers(Task::Simple{}, check_simple, "c_multiple_producers_multiple_consumers_simple", 2);
 
   // Threads
 
@@ -141,22 +195,22 @@ int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
   // std::filesystem::remove("results.csv");
 
-  int N = 64;
-  std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
+  int N = 1;
+  std::vector<size_t> buffer_sizes = {4096};
 
   // for (int i = 10; i < 32; i++) {
-  for (int i = 75; i < 110; i++) {
+  for (int i = 65; i < 66; i++) {
     auto n_events = long(pow(1.2, i));
     std::cout << "Running " << n_events << " repeated " << N << " times"
               << std::endl;
     auto results = run_once(n_events, N, buffer_sizes);
 
-    std::ofstream out_file("results.csv", std::ios_base::app);
+    // std::ofstream out_file("results.csv", std::ios_base::app);
     for (auto r : results) {
-      out_file << r.name << "," << r.events << "," << r.threads << ","
+      std::cout << r.name << "," << r.events << "," << r.threads << ","
                << r.buffer_size << "," << r.n << "," << r.mean << "," << r.std
                << "\n";
     }
-    out_file.close();
+    // out_file.close();
   }
 }

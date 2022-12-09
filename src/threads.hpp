@@ -4,10 +4,10 @@
 #include <thread>
 #include <vector>
 
-#include "aedat.hpp"
+#include "task.hpp"
 #include "blocking_queue.cpp"
 
-using EventVec = std::vector<AEDAT::PolarityEvent>;
+using EventVec = std::vector<Event>;
 using EventThreads = std::vector<std::thread>;
 using EventPtr = std::unique_ptr<EventVec>;
 

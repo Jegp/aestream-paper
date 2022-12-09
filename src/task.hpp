@@ -1,5 +1,14 @@
+#pragma once
+
 #include "stddef.h"
 #include "stdint.h"
+
+struct Event {
+    // 12 bytes in total
+    uint16_t x, y;
+    uint16_t extra[10];
+};
+
 
 namespace Task {
     struct Simple {
@@ -10,15 +19,16 @@ namespace Task {
 
     struct Complex {
         static size_t apply(uint16_t x, uint16_t y) {
-            size_t result{};
-
-            for (int i = 0; i < x; ++i) {
-                for (int j = 0; j < y; ++j) {
-                    result += x * x * y + y;
-                }
+            auto c = new char[1000];
+            for (int i = 0; i < 1000; ++i) {
+                c[i] = x;
             }
-
-            return result;
+            size_t r{};
+            for (int i = 0; i < 1000; ++i) {
+                r += c[i];
+            }
+            delete[] c;
+            return r + y;
         }
     };
 }
