@@ -10,8 +10,8 @@
 #include "aedat.hpp"
 #include "generator.hpp"
 
-#include "threads.hpp"
 #include "task.hpp"
+#include "threads.hpp"
 
 using namespace std::chrono_literals;
 
@@ -25,11 +25,19 @@ event_generator(const std::vector<AEDAT::PolarityEvent> &events) {
   }
 }
 
-template<class Task>
+template <class Task>
 size_t coroutine_sum(Generator<AEDAT::PolarityEvent> events) {
   size_t count = 0;
   for (const auto &event : events) {
     count += Task::apply(event.x, event.y);
+  }
+  return count;
+}
+
+size_t single_sum(const std::vector<AEDAT::PolarityEvent> &events) {
+  size_t count = 0;
+  for (const auto &event : events) {
+    count += event.x + event.y;
   }
   return count;
 }
@@ -98,6 +106,11 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
     events.push_back(event);
   }
 
+  // Single thread
+  auto [sm1, ss1] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
+      single_sum, [&events] { return events; }, check_simple, n_runs);
+  results.push_back({"single_simple", 0, 0, n_events, n_runs, sm1, ss1});
+
   // Coroutines
   auto run_coroutine = [&](auto task, size_t check, const std::string &name) {
     auto [mean, std] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
@@ -111,29 +124,51 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   run_coroutine(Task::Simple{}, check_simple, "c_simple");
   run_coroutine(Task::Complex{}, check_complex, "c_complex");
 
+  // auto [cm2, cs2] = bench_fun<std::vector<AEDAT::PolarityEvent>>(
+  //     [&](std::vector<AEDAT::PolarityEvent> &events) {
+  //       return coroutine_sum_slow(event_generator(events));
+  //     },
+  //     [&events] { return events; }, check_complex, n_runs);
+  // results.push_back({"c_slow", 0, 0, n_events, n_runs, cm2, cm2});
 
   // Threads
 
-  auto run_threads = [&](auto task, size_t check, const std::string &name, size_t t, size_t buffer_size) {
-      using TS = ThreadState<decltype(task)>;
-      auto [mean, std] = bench_fun<TS>(
-          [](TS &t) { return t.run(); },
-          [&] {
-            return TS{events, buffer_size, t};
-          },
-          check, n_runs);
-      results.push_back(
-          {name, t, buffer_size, n_events, n_runs, mean, std});
+  auto run_threads = [&](auto task, size_t check, const std::string &name,
+                         size_t t, size_t buffer_size) {
+    using TS = ThreadState<decltype(task)>;
+    auto [mean, std] = bench_fun<TS>([](TS &t) { return t.run(); },
+                                     [&] {
+                                       return TS{events, buffer_size, t};
+                                     },
+                                     check, n_runs);
+    results.push_back({name, t, buffer_size, n_events, n_runs, mean, std});
   };
 
   std::vector<size_t> threads = {1, 2, 4, 8};
   for (size_t buffer_size : buffer_sizes) {
     for (size_t t : threads) {
-      run_threads(Task::Simple{}, check_simple, "t_simple", t, buffer_size);
-      run_threads(Task::Complex{}, check_complex, "t_complex", t, buffer_size);
+      auto [mean2, std2] = bench_fun<ThreadState>(
+          [](ThreadState &t) { return t.run(); },
+          [&] {
+            return ThreadState{"simple", events, buffer_size, t};
+          },
+          check_simple, n_runs);
+      results.push_back(
+          {"t_simple", t, buffer_size, n_events, n_runs, mean2, std2});
     }
   }
-
+  // for (size_t buffer_size : buffer_sizes) {
+  //   for (size_t t : threads) {
+  //     auto [mean2, std2] = bench_fun<ThreadState>(
+  //         [](ThreadState &t) { return t.run(); },
+  //         [&] {
+  //           return ThreadState{"complex", events, buffer_size, t};
+  //         },
+  //         check_complex, n_runs);
+  //     results.push_back(
+  //         {"t_complex", t, buffer_size, n_events, n_runs, mean2, std2});
+  //   }
+  // }
   return results;
 }
 
@@ -141,11 +176,11 @@ int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
   // std::filesystem::remove("results.csv");
 
-  int N = 64;
+  int N = 128;
   std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
   // for (int i = 10; i < 32; i++) {
-  for (int i = 75; i < 110; i++) {
+  for (int i = 109; i < 114; i++) {
     auto n_events = long(pow(1.2, i));
     std::cout << "Running " << n_events << " repeated " << N << " times"
               << std::endl;

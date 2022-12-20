@@ -1,0 +1,5 @@
+*.aedat4
+.vscode/
+.ipynb_checkpoints/
+
+build/
