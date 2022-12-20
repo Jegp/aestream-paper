@@ -1,0 +1,319 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>AEStream: Accelerated event-based processing with coroutines</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css"
+        integrity="sha512-MV7K8+y+gLIBoVD59lQIYicR65iaqukzvf/nwasF0nqhPay5w/9lJmVM2hMDcnK1OnMGCdVK+iQrJ7lzPJQd1w=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+
+</head>
+
+
+
+<body>
+    <style type="text/css">
+        @font-face {
+            font-family: "Computer Modern";
+            src: url('http://mirrors.ctan.org/fonts/cm-unicode/fonts/otf/cmunss.otf');
+        }
+
+        .button {
+            height: 30px;
+            vertical-align: bottom;
+        }
+
+        body {
+            font-family: "Computer Modern", serif;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        .button,
+        .title,
+        .hero {
+            font-family: "Computer Modern", sans-serif;
+        }
+
+        pre,
+        pre.title,
+        pre.subtitle {
+            font-family: "Computer Modern", monospace;
+        }
+    </style>
+    <nav class="navbar">
+        <div class="container">
+            <div id="navMenu" class="navbar-menu">
+                <div class="navbar-start">
+                    <a class="navbar-item" href="https://jegp.github.io/aestream-paper">
+                        <i class="fa fa-house"></i>&nbsp; Home
+                    </a>
+                    <a class="navbar-item" href="https://github.com/norse/aestream">
+                        <i class="fa fa-book"></i>&nbsp;Documentation
+                    </a>
+                    <a class="navbar-item" href="https://github.com/jegp/aestream-paper">
+                        <i class="fa fa-code"></i>&nbsp;Source code</a>
+                </div>
+
+                <div class="navbar-end">
+                    <div class="navbar-item">
+                        <div class="buttons">
+                            <a class="button is-clickable"><i class="fa-brands fa-github"></i>&nbsp;Github</a>
+                            <p class="control">
+                                <iframe
+                                    src="https://ghbtns.com/github-btn.html?user=twbs&repo=bootstrap&type=star&count=true&size=large"
+                                    frameborder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero is-link">
+        <div class="hero-body">
+            <h1 class="title is-1">
+                AEStream: Accelerated event-based processing with coroutines
+            </h1>
+            <h2 class="subtitle">
+                Modern neuromorphic event processing for machine learning in real-time
+            </h2>
+        </div>
+    </section>
+
+    <div class="container content">
+        <section class="section">
+            <div class="box">
+                <div class="columns">
+                    <div class="column is-1">
+                        <h5>Authors:</h5>
+                    </div>
+                    <div class="column is-4">
+                        <a href="https://jepedersen.dk">Jens E. Pedersen</a> and <a
+                            href="https://neurocomputing.systems">Jörg Conradt</a>
+                    </div>
+                    <div class="column is-1">
+                        <h5>Contact:</h5>
+                    </div>
+                    <div class="column">
+                        <a href="mailto:jeped@kth.se"><i class="fa fa-envelope"></i> jeped@kth.se</a>
+                        - <a href="https://mastodon.social/@jegp"><i class="fa-brands fa-mastodon"></i>
+                            @jegp@mastodon.social</a>
+                    </div>
+                </div>
+
+                <figure>
+                    <img alt="AEStream" src="2212_aestream.svg" class="image is-12" />
+                </figure>
+                <p class="subtitle">We present AEStream: a library to efficiently process event-based data from
+                    neuromorphic sensors with
+                    a dead-simple interface.
+                    We show that AEStream can <b>double the throughput</b> across synchronization barriers and exploit
+                    the
+                    parallelism of the GPU to <b>process 1.3 times more data with 5 times fewer memory operations</b>.
+
+                    AEStream supports files, event-based camera, and network input and streams to file, network, and
+                    GPUs via PyTorch.
+                    All code is open-source, <a href="https://pypi.org/project/aestream">installable via pip</a> and
+                    easily extensible.
+                </p>
+        </section>
+
+        <figure>
+            <video controls autoplay loop muted>
+                <source src="edge.mp4" type="video/mp4"/>
+                <source src="edge.webm" type="video/webm"/>
+            </video>
+            <figcaption>
+                Raw event-based data (left) that is being filtered through a horizontal (mid) and vertical (right) edge detector in real-time.
+            </figcaption>
+        </figure>
+
+        <h2 id="intro">Introduction: the problem with processing events</h2>
+        <figure>
+            <img src="2212_NICE_coroutines.svg" alt="Coroutines vs buffers" />
+            <figcaption><b>(A)</b> A reading thread (blue) creates buffers that are processed by other threads.
+                <b>(B)</b> Coroutines concurrently processes events, which means that they are free to run on other
+                threads without synchronization.<figcaption>
+        </figure>
+        <p>
+            Neuromorphic sensors imitate the sparse and event-based communication seen in biological sensory organs and
+            brains. Today's
+            sensors can emit many millions of asynchronous events per second.
+            For modern computers to cope with that they need to process events in parallel.
+            Unfortunately, that requires synchronization mechanisms between threads and processes which takes up a large
+            part of our
+            processes.
+        </p>
+        <p>Panel <b>(A)</b> in the figure above illustrates the problem: every time an input thread passes over some
+            work, time is spent to coordinate the work.
+            Because of this cost, threads typically bundle events into buffers to amortize the cost.
+            Panel <b>(B)</b> shows another method that do not require memory locks and that can operate directly on
+            events: coroutines.</p>
+        <p>Coroutines were designed in 1958 as a way to pass control between functions, without
+            the need
+            for centralized synchronization. In theory, this means that coroutines on multicore systems can maximize
+            core
+            utilization
+            without the overhead of locks. We set out to test that.
+        </p>
+
+        <h2>Benchmarking event throughput with coroutines</h2>
+        <figure>
+            <img class="image" alt="Coroutine benchmark" src="speedup.png" />
+            <figcaption>Coroutines provide at least twice the throughput compared to threaded synchronization
+                mechanisms. Averaged across 128 runs.</figcaption>
+        </figure>
+        <p>
+            To measure the actual impact of coroutines on processing performance, we devised a benchmark comparing
+            coroutines
+            to conventional thread programming.
+            The computational work in the
+            benchmark is trivial to isolate the effect of the synchronization between threads.
+            Our benchmark is promising: coroutines provide at last 2 times
+            higher throughput compared to conventional threads, irrespective of buffer sizes and number of threads.
+        </p>
+
+        <h2>AEStream: Accelerated event-based processing</h2>
+        <div class="columns">
+            <div class="column block">
+                <p>
+                    We built on the above results to construct <b>a library to efficiently process event-based data</b>:
+                    AEStream.
+                    AEStream uses simple address-event representations (AER) and supports reading from file, event-based
+                    cameras, and from the network.</p>
+                <p>
+                    AEStream has a straight-forward command-line (CLI) interface where any inputs can be combined with
+                    any outputs.
+                </p>
+            </div>
+            <div class="column">
+                <pre><code class="language-bash">$ aestream input inivation dvx output udp 10.0.0.1
+$ aestream input file f.aedat4 output stdout      </code></pre>
+            </div>
+        </div>
+        <div class="columns">
+            <div class="column block">
+                <p>
+                    AEStream is written in C++ and CUDA, but can be operated from Python.
+                    The example to the left demonstrates how a USB camera with 640x480 resolution can be read.
+                    The <code>.read()</code> operation extracts a PyTorch tensor that can be directly applied to neural
+                    networks, including
+                    <a href="https://en.wikipedia.org/wiki/Spiking_neural_network">spiking neural networks</a> with the
+                    <a href="https://github.com/norse/norse">neuron simulator, Norse</a>.
+                </p>
+            </div>
+            <div class="column">
+                <pre><code class="language-python">import aestream
+with aestream.USBInput((640, 480)) as stream:
+while True:
+    tensor = stream.read()
+        </code></pre>
+            </div>
+        </div>
+
+        <figure>
+            <img class="image" alt="Address-event representation frameworks" src="2212_table.png" />
+            <figcaption>An overview of open-source libraries for event-based processing based on the underlying code,
+                python bindings, and native
+                I/O support. Icons indicate support for GPUs (<i class="fa fa-microchip"></i>), event-based cameras (<i
+                    class="fa fa-camera"></i>), files (<i class="fa fa-file"></i>), and network transmission (<i
+                    class="fa fa-wifi"></i>). “N/A” shows
+                that no native outputs are supported. * Sepia supports cameras via extensions.</figcaption>
+        </figure>
+
+        <h2>Benchmarking GPU processing with AEStream</h2>
+        <div class="columns">
+            <div class="column">
+                To explore the performance of coroutines and CUDA integration in AEStream, we benchmarked four settings:
+                <ol>
+                    <li>Synchronous read-and-copy events to GPU.</li>
+                    <li>Concurrent read-and-copy events to GPU with coroutines.</li>
+                    <li>Synchronous read-and-copy events with parallel copy to CUDA.</li>
+                    <li>Concurrent read-and-copy events with parallel copy to CUDA.</li>
+                </ol>
+                <p>
+                    In sum, AEStream reduces copying operations to the GPU by a factor of at least 5 and allows
+                    processing at around
+                    30% more frames (6.5 × 10<sup>4</sup> versus 5 × 10<sup>4</sup> in total) over a period of around 25
+                    seconds compared to conventional
+                    synchronous processing.
+                </p>
+            </div>
+            <figure class="column">
+                <img src="2212_gpu_frames.png" class="image" alt="GPU performance" />
+                <figcaption>Synchronous processing without specialized CUDA kernels perform significantly worse: in a
+                    28.4
+                    second benchmark, custom CUDA code with coroutines ran 1.3 times more frames and spent 5 times less
+                    copying memory from CPU to GPU.</figcaption>
+            </figure>
+        </div>
+
+        <h2>Discussion</h2>
+        <p>
+            We have demonstrated the efficiency of AEStream for event-based processing in CPU and from CPU to
+            peripherals (GPU).
+            Because AEStream is built around simple, functional primitives, it can arbitrarily connect inputs
+            to outputs in a straight-forward Python or command-line interface. This is particularly useful for real-time
+            settings
+            with dedicated, parallel or neuromorphic hardware.
+            Another important contribution is the PyTorch and CUDA support. Low-level CUDA programming is a non-trivial
+            and error-prone endeavor that is rarely worth the effort. In the case of GPU-integration, however, we
+            believe the effort is timely; efficiently sending AER data to GPUs opens the door to a host of contemporary
+            machine learning
+            tools, ranging from deep learning libraries like PyTorch to spiking neuron simulators like Norse to
+            graphical
+            libraries for
+            visual inspection.
+            It should be said that we have not studied AEStream in relation to other libraries, so we can only
+            hypothesize how fast or slow it performs in comparison. Further benchmarks in this direction would be
+            interesting.
+        </p>
+        <p>
+            Finally, it is our hope that AEStream can benefit the community and lower the entrance-barrier for research
+            in neuromorphic computation.
+            This website publishes all our code, along with instructions on how to reproduce our results.
+            We encourage the reader to copy and extend our work.
+        </p>
+
+        <h2>Acknowledgements</h2>
+        <p>
+            We foremost would like to thank Anders Bo Sørensen for his friendly and invaluable help with CUDA and GPU
+            profiling. Emil
+            Jansson
+            deserves our gratitude for scrutinizing and improving the coroutine benchmark C++ code. We gracefully
+            recognize
+            funding from the EC Horizon 2020 Framework Programme under Grant Agreements 785907 and 945539 (HBP). Our
+            thanks also extend to the Pioneer Centre for AI, under the Danish National Research Foundation grant number
+            P1, for
+            hosting us.
+        </p>
+    </div>
+    </div>
+    <footer class="footer">
+        <div class="content has-text-centered">
+            <p>This website was developed by <a href="https://jepedersen.dk" class="svelte-1pc98p8">Jens Egholm
+                    Pedersen</a>
+                who is studying at the
+                <a href="https://neurocomputing.systems" class="svelte-1pc98p8">Neurocomputing Systems lab</a>
+                at the <a href="https://kth.se" class="svelte-1pc98p8">KTH Royal Institute of Technology</a> in
+                Stockholm,
+                Sweden.
+            </p>
+            <p> The source code is licensed
+                <a href="http://opensource.org/licenses/mit-license.php">MIT</a>. The website content
+                is licensed <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY NC SA 4.0</a>.
+            </p>
+        </div>
+    </footer>
+</body>
+
+</html>
