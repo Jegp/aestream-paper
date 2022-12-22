@@ -217,8 +217,8 @@ $ aestream input file f.aedat4 output stdout      </code></pre>
             <div class="column">
                 <pre><code class="language-python">import aestream
 with aestream.USBInput((640, 480)) as stream:
-while True:
-    tensor = stream.read()
+    while True:
+        tensor = stream.read()
         </code></pre>
             </div>
         </div>
