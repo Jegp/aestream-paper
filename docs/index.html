@@ -137,7 +137,8 @@
             </video>
             <figcaption>
                 Raw event-based data (left) that is being filtered through a horizontal (mid) and vertical (right) edge detector in real-time.
-            </figcaption>
+            Find <a href="https://github.com/norse/aestream/blob/main/example/usb_edgedetection.py">the example code here</a>.
+</figcaption>
         </figure>
 
         <h2 id="intro">Introduction: the problem with processing events</h2>
@@ -207,7 +208,7 @@ $ aestream input file f.aedat4 output stdout      </code></pre>
             <div class="column block">
                 <p>
                     AEStream is written in C++ and CUDA, but can be operated from Python.
-                    The example to the left demonstrates how a USB camera with 640x480 resolution can be read.
+                    The example to the right demonstrates how a USB camera with 640x480 resolution can be read.
                     The <code>.read()</code> operation extracts a PyTorch tensor that can be directly applied to neural
                     networks, including
                     <a href="https://en.wikipedia.org/wiki/Spiking_neural_network">spiking neural networks</a> with the
