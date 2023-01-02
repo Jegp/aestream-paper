@@ -17,6 +17,8 @@ $ ./aestream-paper
 ```
 
 ## Reproducing GPU benchmarks
+Install the GPU version of PyTorch along with  [the spiking neural network simulator Norse](https://github.com/norse/norse).
+Then run:
 
 ```bash
 $ python3 src/gpu_benchmark.py
