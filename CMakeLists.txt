@@ -9,9 +9,9 @@ set(GCC_COVERAGE_COMPILE_FLAGS "-fcoroutines")
 set(default_build_type Release)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 
-include_directories("aestream/include")
-add_subdirectory("aestream")
+# include_directories("aestream/include")
+# add_subdirectory("aestream")
 
 # AEDAT4 processing
 add_executable(aestream-paper src/benchmark.cpp src/blocking_queue.cpp)
-target_link_libraries(aestream-paper PUBLIC aestream_lib)
+# target_link_libraries(aestream-paper PUBLIC aestream_lib)

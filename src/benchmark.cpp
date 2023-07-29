@@ -147,10 +147,10 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   std::vector<size_t> threads = {1, 2, 4, 8};
   for (size_t buffer_size : buffer_sizes) {
     for (size_t t : threads) {
-      auto [mean2, std2] = bench_fun<ThreadState>(
-          [](ThreadState &t) { return t.run(); },
+      auto [mean2, std2] = bench_fun<ThreadState<Task::Simple>>(
+          [](ThreadState<Task::Simple> &t) { return t.run(); },
           [&] {
-            return ThreadState{"simple", events, buffer_size, t};
+            return ThreadState<Task::Simple>{events, buffer_size, t};
           },
           check_simple, n_runs);
       results.push_back(
