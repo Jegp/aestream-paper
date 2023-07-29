@@ -3,3 +3,6 @@
 .ipynb_checkpoints/
 
 build/
+.venv
+*.csv
+*.png

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-O3 -Wall -march=native ${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 set(GCC_COVERAGE_COMPILE_FLAGS "-fcoroutines")
 
-set(default_build_type Release)
+set(default_build_type Debug)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 
 # include_directories("aestream/include")

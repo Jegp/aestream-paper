@@ -1,17 +1,23 @@
+#include <iostream>
+
 template <class Task> void ThreadState<Task>::consumer() {
   unsigned long sum = 0;
-  while (true) {
-    auto opt = event_queue.pop();
-    if (opt.has_value()) {
-      size_t sum = 0;
-      for (const auto &event : *opt.value()) {
-        sum += Task::apply(event.x, event.y);
+  try {
+    while (true) {
+      auto opt = event_queue.pop();
+      if (opt.has_value()) {
+        size_t sum = 0;
+        for (const auto &event : *opt.value()) {
+          sum += Task::apply(event.x, event.y);
+        }
+      } else {
+        break;
       }
-    } else {
-      break;
     }
+    sum_value += sum;
+  } catch (std::exception &e) {
+    std::cout << " Consumer " << e.what() << std::endl;
   }
-  sum_value.fetch_add(sum);
 }
 
 template <class Task>
@@ -22,19 +28,22 @@ EventPtr ThreadState<Task>::reserve_buffer(size_t buffer_size) {
 }
 
 template <class Task> void ThreadState<Task>::producer() {
-  EventPtr buffer = reserve_buffer(buffer_size);
-  for (const auto &event : events) {
-    buffer->push_back(event);
-    if (buffer->size() >= buffer_size) {
-      event_queue.push(buffer);
-      buffer = reserve_buffer(buffer_size);
+  try {
+    EventPtr buffer = reserve_buffer(buffer_size);
+    for (const auto &event : events) {
+      buffer->push_back(event);
+      if (buffer->size() >= buffer_size) {
+        event_queue.push(buffer);
+        buffer = reserve_buffer(buffer_size);
+      }
     }
-  }
 
-  if (buffer->size() > 0) {
-    event_queue.push(buffer);
+    if (buffer->size() > 0) {
+      event_queue.push(buffer);
+    }
+  } catch (std::exception &e) {
+    std::cout << " Producer " << e.what() << std::endl;
   }
-  event_queue.shutdown();
 }
 
 template <class Task>
@@ -42,18 +51,21 @@ ThreadState<Task>::ThreadState(const EventVec &ev, size_t buf_size,
                                size_t n_consumers)
     : buffer_size{buf_size}, events{ev}, sum_value{0} {
   for (size_t i = 0; i < n_consumers; i++) {
-    consumer_threads.emplace_back(std::thread{&ThreadState::consumer, this});
+    consumer_threads.emplace_back(std::thread([&] { consumer(); }));
   }
 }
 
 template <class Task> size_t ThreadState<Task>::run() {
-  auto p_thread = std::thread(&ThreadState::producer, this);
+  try {
+    auto p_thread = std::thread([&] { producer(); });
+    p_thread.join();
+    event_queue.shutdown();
 
-  p_thread.join();
-
-  for (auto &thread : consumer_threads) {
-    thread.join();
+    for (auto &thread : consumer_threads) {
+      thread.join();
+    }
+    return sum_value.load();
+  } catch (std::exception &e) {
+    std::cout << " ThreadState " << e.what() << std::endl;
   }
-  return sum_value.load();
 }
-
