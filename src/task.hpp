@@ -1,9 +1,13 @@
 #include "stddef.h"
 #include "stdint.h"
 
-namespace Task {
-    struct Simple {
-        static size_t apply(uint16_t x, uint16_t y) {
+namespace Task
+{
+    struct Simple
+    {
+        static size_t apply(uint16_t x, uint16_t y)
+        {
+
             return x + y;
         }
     };

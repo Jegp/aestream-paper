@@ -56,3 +56,4 @@ template <class Task> size_t ThreadState<Task>::run() {
   }
   return sum_value.load();
 }
+
