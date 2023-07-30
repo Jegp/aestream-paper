@@ -1,7 +1,9 @@
 #pragma once
 
 #include <coroutine>
+#include <functional>
 #include <iostream>
+#include <optional>
 #include <thread>
 
 template <typename PromiseType> struct GetPromise {
@@ -20,7 +22,7 @@ template <typename PromiseType> struct ThreadAwaiter {
       return ThreadAwaiter<PromiseType>{
           .coro = std::coroutine_handle<promise_type>::from_promise(*this)};
     }
-    std::coroutine_handle<PromiseType> return_handle;
+    std::optional<std::coroutine_handle<PromiseType>> return_handle;
     std::coroutine_handle<> await_suspend(std::coroutine_handle<> h) {
       return std::noop_coroutine();
     }
@@ -28,10 +30,7 @@ template <typename PromiseType> struct ThreadAwaiter {
     std::suspend_never final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception() {}
-    bool await_ready() {
-      // std::cout << "await_ready " << value << std::endl;
-      return false;
-    }
+    bool await_ready() { return false; }
     void await_resume() {}
   };
   std::coroutine_handle<promise_type> coro;
@@ -41,7 +40,8 @@ template <typename PromiseType> struct ThreadAwaiter {
 struct ReturnObject {
 
   struct promise_type {
-    ThreadAwaiter<ReturnObject::promise_type>::promise_type *awaiter;
+    std::vector<ThreadAwaiter<ReturnObject::promise_type>::promise_type *>
+        awaiters;
     int value{0};
     ReturnObject get_return_object() {
       return ReturnObject{
@@ -53,12 +53,13 @@ struct ReturnObject {
     std::suspend_never final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception() {}
-    bool await_ready() {
-      std::cout << "await_ready " << value << std::endl;
-      return false;
-    }
-    void await_resume() { std::cout << "await_resume " << value << std::endl; }
+    bool await_ready() { return false; }
+    void await_resume() { callback(value); }
+    std::function<void(int)> callback;
   };
   std::coroutine_handle<promise_type> coro;
   operator std::coroutine_handle<>() { return coro; }
+  explicit operator bool() const { return !coro.done(); }
+  int operator()() { return coro.promise().value; }
+  ~ReturnObject() { coro.destroy(); }
 };
