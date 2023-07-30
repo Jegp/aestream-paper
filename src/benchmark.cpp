@@ -199,12 +199,13 @@ int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
   // std::filesystem::remove("results.csv");
 
-  int N = 128;
-  std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
+  int N = 8;
+  // std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
+  std::vector<size_t> buffer_sizes = {512, 4096, 16384};
 
-  // for (int i = 10; i < 11; i++)
-  // for (int i = 50; i < 60; i++)
-  for (int i = 109; i < 114; i++) {
+  // for (int i = 10; i < 11; i++) {
+  for (int i = 70; i < 100; i++) {
+    // for (int i = 109; i < 114; i++) {
     auto n_events = long(pow(1.2, i));
     std::cout << "Running " << n_events << " repeated " << N << " times"
               << std::endl;
