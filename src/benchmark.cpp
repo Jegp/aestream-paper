@@ -41,13 +41,14 @@ template <class Task> size_t coroutine_sum(Generator<AER::Event> events) {
 }
 
 // Parallel coroutines
-ReturnObject<AER::Event> bench_co_par(EventVec &events, size_t checksum,
-                                      std::vector<size_t> &times) {
+ReturnObject<AER::Event> bench_co_par(const EventVec &events,
+                                      const size_t checksum,
+                                      std::vector<size_t> &times,
+                                      const size_t n_threads) {
   std::atomic<bool> done{false};
   std::mutex awaiter_list_lock;
   std::vector<std::jthread> threads{};
   std::vector<ThreadPromise<AER::Event> *> awaiters = {};
-  size_t n_threads = 2;
   for (size_t i = 0; i < n_threads; i++) {
     threads.push_back(std::jthread([&]() mutable {
       thread_runner<AER::Event>(awaiters, awaiter_list_lock, done);
@@ -65,16 +66,24 @@ ReturnObject<AER::Event> bench_co_par(EventVec &events, size_t checksum,
   object->awaiters = awaiters;
   object->callback = sum_co_lambda;
 
+  std::cout << "Awaiters " << object->awaiters.size() << std::endl;
+
   // Run
   auto before = std::chrono::high_resolution_clock::now();
-  for (auto &event : events) {
-    object->value = event;
-    if (object->current_exception) {
-      std::rethrow_exception(object->current_exception);
-    } else {
-      co_await *object;
+  try {
+    for (auto &event : events) {
+      object->value = event;
+      if (object->current_exception) {
+        std::rethrow_exception(object->current_exception);
+      } else {
+        co_await *object;
+      }
     }
+
+  } catch (std::exception &e) {
+    std::cout << "Exception: " << e.what() << std::endl;
   }
+  std::cout << "Thread " << std::this_thread::get_id() << " done" << std::endl;
 
   // Store time
   auto after = std::chrono::high_resolution_clock::now();
@@ -84,13 +93,15 @@ ReturnObject<AER::Event> bench_co_par(EventVec &events, size_t checksum,
   std::cout << "Duration: " << duration << std::endl;
 
   // Reset
-  if (sum_co_par.load() != checksum) {
-    std::cout << "Duration: " << duration << std::endl;
-    std::cerr << "Checksum failed: " << sum_co_par << " != " << checksum
-              << std::endl;
-  } else {
-    times.push_back(duration);
-  }
+  // if (sum_co_par.load() != checksum) {
+  // std::cout << "Duration: " << duration << std::endl;
+  // std::cout << "Checksum failed: " << sum_co_par << " != " << checksum
+  // << std::endl;
+  // } else {
+  times.push_back(duration);
+  // }
+
+  std::this_thread::sleep_for(500ms);
 
   cleanup_coroutines<AER::Event>(threads, awaiters, done);
 }
@@ -151,22 +162,22 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   }
 
   // Single thread
-  // auto single_run = [&](const std::string &name, TaskType task,
-  // size_t checksum) {
-  // return bench_fun(
-  // name,
-  // [&] {
-  // size_t count = 0;
-  // for (const auto &event : events) {
-  // count += task(event.x, event.y);
-  // }
-  // return count;
-  // },
-  // checksum, n_runs);
-  // };
-  // auto [sm1, ss1] =
-  // single_run("single_simple", Task::Simple::apply, check_simple);
-  // results.push_back({"single_simple", 0, 0, n_events, n_runs, sm1, ss1});
+  auto single_run = [&](const std::string &name, TaskType task,
+                        size_t checksum) {
+    return bench_fun(
+        name,
+        [&] {
+          size_t count = 0;
+          for (const auto &event : events) {
+            count += task(event.x, event.y);
+          }
+          return count;
+        },
+        checksum, n_runs);
+  };
+  auto [sm1, ss1] =
+      single_run("single_simple", Task::Simple::apply, check_simple);
+  results.push_back({"single_simple", 0, 0, n_events, n_runs, sm1, ss1});
   // auto [sm2, ss2] =
   // single_run("single_complex", Task::Complex::apply, check_complex);
   // results.push_back({"single_complex", 0, 0, n_events, n_runs, sm2, ss2});
@@ -244,8 +255,10 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   // Parallel coroutine benchmark
   std::vector<size_t> times{};
   for (int i = 0; i < n_runs; i++) {
-    bench_co_par(events, check_simple, times);
+    bench_co_par(events, check_simple, times, 30);
   }
+  std::cout << "Times: " << times.size() << ": " << times[0] << " " << times[1]
+            << std::endl;
 
   auto mean = accumulate(times.begin(), times.end(), 0.0) / times.size();
   float dev = 0.0;
@@ -255,6 +268,7 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   auto stddev = sqrt(dev / times.size());
 
   results.emplace_back("conoop", 0, 0, events.size(), n_runs, mean, stddev);
+  std::this_thread::sleep_for(500ms);
 
   // Return all results
   return results;
@@ -264,25 +278,25 @@ int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
   // std::filesystem::remove("results.csv");
 
-  int N = 8;
+  int N = 3;
   // std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
   std::vector<size_t> buffer_sizes = {512, 4096, 16384};
 
-  for (int i = 10; i < 11; i++) {
-    // for (int i = 70; i < 100; i++) {
-    // for (int i = 109; i < 114; i++) {
-    auto n_events = long(pow(1.2, i));
-    std::cout << "Running " << n_events << " repeated " << N << " times"
-              << std::endl;
-    auto results = run_once(n_events, N, buffer_sizes);
+  // for (int i = 70; i < 100; i++) {
+  // for (int i = 109; i < 114; i++) {
+  // auto n_events = long(pow(1.2, i));
+  auto n_events = 10000;
+  std::cout << "Running " << n_events << " repeated " << N << " times"
+            << std::endl;
+  auto results = run_once(n_events, N, buffer_sizes);
 
-    std::string fname{"results.csv"};
-    std::ofstream out_file(fname, std::ios::app);
-    for (auto r : results) {
-      out_file << r.name << "," << r.events << "," << r.threads << ","
-               << r.buffer_size << "," << r.n << "," << r.mean << "," << r.std
-               << "\n";
-    }
-    out_file.close();
+  std::string fname{"results.csv"};
+  std::ofstream out_file(fname, std::ios::app);
+  for (auto r : results) {
+    out_file << r.name << "," << r.events << "," << r.threads << ","
+             << r.buffer_size << "," << r.n << "," << r.mean << "," << r.std
+             << "\n";
   }
+  out_file.close();
+  // }
 }

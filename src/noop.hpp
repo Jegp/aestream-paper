@@ -119,18 +119,28 @@ thread_runner(std::vector<ThreadPromise<T> *> &awaiters,
     if (promise->return_handle.has_value()) {
       promise->return_handle.value().resume();
       // std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      promise->return_handle.reset();
+      promise->return_handle = {};
     }
   }
-  promise->get_return_object().coro.destroy();
+  // if (promise->return_handle.has_value()) {
+    // promise->return_handle.value().resume();
+    // promise->return_handle.value().destroy();
+    // promise->get_return_object().coro.destroy();
+  // }
 }
 
 template <typename T>
 ThreadAwaiter<ReturnPromise<T>>
 do_dumb_stuff(std::coroutine_handle<ReturnPromise<T>> h,
               ThreadPromise<T> *awaiter) {
-  awaiter->return_handle = {h};
-  co_await *awaiter;
+  // if (awaiter->return_handle.has_value()) {
+  // !awaiter->return_handle.value().done()) {
+  if (!awaiter->return_handle.has_value()) {
+    awaiter->return_handle = {h};
+    co_await *awaiter;
+  } else {
+    // std::cout << "Has value" << std::endl;
+  }
 }
 // template <typename T>
 // ReturnObject<T>
