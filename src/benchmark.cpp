@@ -60,30 +60,34 @@ ReturnObject<AER::Event> bench_co_par(const EventVec &events,
 
   // Run benchmark
   std::atomic<long> sum_co_par{0};
-  auto sum_co_lambda = [&](AER::Event &e) { sum_co_par.fetch_add(e.x + e.y); };
+  // auto sum_co_lambda = [&](AER::Event e) {
+  // sum_co_par.fetch_add(Task::Complex::apply(e.x, e.y)); };
+  auto sum_co_lambda = [&](AER::Event e) {
+    sum_co_par.fetch_add(Task::Complex::apply(e.x, e.y));
+  };
   ReturnPromise<AER::Event> *object =
       co_await GetPromise<ReturnPromise<AER::Event>>{};
   object->awaiters = awaiters;
-  object->callback = sum_co_lambda;
+  object->set_callback(sum_co_lambda);
 
-  std::cout << "Awaiters " << object->awaiters.size() << std::endl;
+  // std::cout << "Awaiters " << object->awaiters.size() << std::endl;
 
   // Run
   auto before = std::chrono::high_resolution_clock::now();
-  try {
-    for (auto &event : events) {
-      object->value = event;
-      if (object->current_exception) {
-        std::rethrow_exception(object->current_exception);
-      } else {
-        co_await *object;
-      }
-    }
-
-  } catch (std::exception &e) {
-    std::cout << "Exception: " << e.what() << std::endl;
+  // try {
+  for (auto event : events) {
+    // if (object->current_exception) {
+    // std::rethrow_exception(object->current_exception);
+    // } else {
+    co_yield event;
+    // }
   }
-  std::cout << "Thread " << std::this_thread::get_id() << " done" << std::endl;
+
+  // } catch (std::exception &e) {
+  // std::cout << "Exception: " << e.what() << std::endl;
+  // }
+  // std::cout << "Thread " << std::this_thread::get_id() << " done" <<
+  // std::endl;
 
   // Store time
   auto after = std::chrono::high_resolution_clock::now();
@@ -93,15 +97,16 @@ ReturnObject<AER::Event> bench_co_par(const EventVec &events,
   std::cout << "Duration: " << duration << std::endl;
 
   // Reset
-  // if (sum_co_par.load() != checksum) {
-  // std::cout << "Duration: " << duration << std::endl;
-  // std::cout << "Checksum failed: " << sum_co_par << " != " << checksum
-  // << std::endl;
+  if (sum_co_par.load() != checksum) {
+    // std::cout << "Duration: " << duration << std::endl;
+    std::cout << "Checksum failed: " << sum_co_par << " != " << checksum
+              << std::endl;
+  }
   // } else {
   times.push_back(duration);
   // }
 
-  std::this_thread::sleep_for(500ms);
+  // std::this_thread::sleep_for(500ms);
 
   cleanup_coroutines<AER::Event>(threads, awaiters, done);
 }
@@ -219,43 +224,39 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   // }
 
   // Threadpool benchmark
-  // std::vector<size_t> threads = {1, 2, 4, 8};
-  // auto run_threadpool = [&](auto task, const std::string &name,
-  //                           const size_t checksum, size_t n_threads,
-  //                           size_t buffer_size) {
-  //   std::unique_ptr<ThreadPool> tp{nullptr};
-  //   auto [mean, std] = bench_fun(
-  //       name,
-  //       [&]() {
-  //         for (const auto &event : events) {
-  //           tp->enqueue(task, event.x, event.y);
-  //         }
-
-  //         tp->sync();
-
-  //         return tp->total_sum.load();
-  //       },
-  //       checksum, n_runs,
-  //       [&] { tp = std::make_unique<ThreadPool>(n_threads, buffer_size); });
-  //   Result res =
-  //       Result{name, n_threads, buffer_size, n_events, n_runs, mean, std};
-  //   results.push_back(res);
-  // };
-
-  // for (size_t buffer_size : buffer_sizes) {
-  //   for (size_t n_threads : threads) {
-  //     run_threadpool(Task::Simple::apply, "tp_simple", check_simple,
-  //     n_threads,
-  //                    buffer_size);
-  //     run_threadpool(Task::Complex::apply, "tp_complex", check_complex,
-  //                    n_threads, buffer_size);
-  //   }
-  // }
+  std::vector<size_t> threads = {1, 2, 4, 8};
+  auto run_threadpool = [&](auto task, const std::string &name,
+                            const size_t checksum, size_t n_threads,
+                            size_t buffer_size) {
+    std::unique_ptr<ThreadPool> tp{nullptr};
+    auto [mean, std] = bench_fun(
+        name,
+        [&]() {
+          for (const auto &event : events) {
+            tp->enqueue(task, event.x, event.y);
+          }
+          tp->sync();
+          return tp->total_sum.load();
+        },
+        checksum, n_runs,
+        [&] { tp = std::make_unique<ThreadPool>(n_threads, buffer_size); });
+    Result res =
+        Result{name, n_threads, buffer_size, n_events, n_runs, mean, std};
+    results.push_back(res);
+  };
+  for (size_t buffer_size : buffer_sizes) {
+    for (size_t n_threads : threads) {
+      run_threadpool(Task::Simple::apply, "tp_simple", check_simple, n_threads,
+                     buffer_size);
+      // run_threadpool(Task::Complex::apply, "tp_complex", check_complex,
+      //  n_threads, buffer_size);
+    }
+  }
 
   // Parallel coroutine benchmark
   std::vector<size_t> times{};
   for (int i = 0; i < n_runs; i++) {
-    bench_co_par(events, check_simple, times, 30);
+    bench_co_par(events, check_simple, times, 18);
   }
   std::cout << "Times: " << times.size() << ": " << times[0] << " " << times[1]
             << std::endl;
@@ -268,7 +269,6 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   auto stddev = sqrt(dev / times.size());
 
   results.emplace_back("conoop", 0, 0, events.size(), n_runs, mean, stddev);
-  std::this_thread::sleep_for(500ms);
 
   // Return all results
   return results;
@@ -278,7 +278,7 @@ int main(int argc, char const *argv[]) {
   std::srand(std::time(nullptr));
   // std::filesystem::remove("results.csv");
 
-  int N = 3;
+  int N = 4;
   // std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
   std::vector<size_t> buffer_sizes = {512, 4096, 16384};
 
