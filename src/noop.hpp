@@ -3,6 +3,7 @@
 #include <coroutine>
 #include <functional>
 #include <iostream>
+#include <mutex>
 #include <optional>
 #include <thread>
 
@@ -26,7 +27,10 @@ template <typename PromiseType, std::movable T> struct ThreadAwaiter {
           .coro = std::coroutine_handle<promise_type>::from_promise(*this)};
     }
     std::optional<std::function<void(T)>> callback{};
-    std::optional<T> value{};
+    std::timed_mutex callback_lock;
+    std::optional<T> value;
+    std::coroutine_handle<PromiseType> return_handle;
+
     std::coroutine_handle<> await_suspend(std::coroutine_handle<> h) {
       if (current_exception) {
         std::rethrow_exception(current_exception);
@@ -74,11 +78,11 @@ template <std::movable T> struct ReturnObject {
     // }
     std::suspend_never yield_value(T value) {
       int index = current_awaiter++ % awaiters.size();
-      while (awaiters[index]->value.has_value()) {
-        index = current_awaiter++ % awaiters.size();
-      }
-      auto awaiter = awaiters[index];
-      awaiter->value = std::move(value);
+      // auto coro = std::coroutine_handle<promise_type>::from_promise(*this);
+      ThreadAwaiterType *awaiter = awaiters[index];
+      // awaiter->return_handle = coro;
+      awaiter->value.emplace(std::move(value));
+      // awaiter->callback_lock.unlock();
       // do_dumb_stuff<T>(coro, awaiter);
       return std::suspend_never{};
     }
@@ -130,14 +134,24 @@ thread_runner(std::vector<ThreadPromise<T> *> &awaiters,
     std::lock_guard<std::mutex> lock(awaiter_list_lock);
     awaiters.push_back(promise);
   }
+  // promise->callback_lock.lock(); // Lock until woken up
   while (!done) {
-    if (promise->value.has_value()) {
-      // promise->return_handle.value().resume();
-      // std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      // std::cout << "Thread " << std::this_thread::get_id() << " "
-      // << promise->value.value() << std::endl;
-      promise->callback.value()(promise->value.value());
-      promise->value.reset();
+    std::chrono::duration du = std::chrono::milliseconds(100);
+    {
+      if (promise->value.has_value()) {
+        // if (promise->callback.has_value()) {
+        // promise->callback.value()(promise->value.value());
+        // }
+        // promise->return_handle.resume();
+        // promise->value.reset();
+        // } else {
+      }
+      std::this_thread::yield();
+      // promise->callback_lock.try_lock_for(du);
+      // std::lock_guard<std::mutex> lock(promise->callback_lock);
+      // promise->callback_lock.unlock();
+
+      // promise->return_handle.resume();
     }
   }
   // promise->get_return_object().coro.destroy();
