@@ -48,11 +48,6 @@ template <typename PromiseType, std::movable T> struct ThreadAwaiter {
   };
   std::coroutine_handle<promise_type> coro;
   operator std::coroutine_handle<>() { return coro; }
-  // ~ThreadAwaiter() {
-  // if (coro) {
-  // coro.destroy();
-  // }
-  // }
 };
 
 template <std::movable T> struct ReturnObject {
@@ -79,9 +74,21 @@ template <std::movable T> struct ReturnObject {
     std::suspend_never yield_value(T value) {
       int index = current_awaiter++ % awaiters.size();
       // auto coro = std::coroutine_handle<promise_type>::from_promise(*this);
-      ThreadAwaiterType *awaiter = awaiters[index];
+      int attempt = 0;
+      while (awaiters[index]->value.has_value()) {
+        std::this_thread::yield();
+        index = current_awaiter++ % awaiters.size();
+        attempt++;
+        if (attempt >= awaiters.size()) {
+          break;
+        }
+      }
+
       // awaiter->return_handle = coro;
-      awaiter->value.emplace(std::move(value));
+      // while (awaiter->value.has_value()) {
+      // std::this_thread::yield();
+      // }
+      awaiters[index]->value.emplace(std::move(value));
       // awaiter->callback_lock.unlock();
       // do_dumb_stuff<T>(coro, awaiter);
       return std::suspend_never{};
@@ -136,17 +143,15 @@ thread_runner(std::vector<ThreadPromise<T> *> &awaiters,
   }
   // promise->callback_lock.lock(); // Lock until woken up
   while (!done) {
-    std::chrono::duration du = std::chrono::milliseconds(100);
     {
       if (promise->value.has_value()) {
-        // if (promise->callback.has_value()) {
-        // promise->callback.value()(promise->value.value());
-        // }
+        promise->callback.value()(promise->value.value());
+        promise->value.reset();
         // promise->return_handle.resume();
         // promise->value.reset();
         // } else {
       }
-      std::this_thread::yield();
+      // std::this_thread::yield();
       // promise->callback_lock.try_lock_for(du);
       // std::lock_guard<std::mutex> lock(promise->callback_lock);
       // promise->callback_lock.unlock();
@@ -195,7 +200,7 @@ template <std::movable T>
 void cleanup_coroutines(std::vector<std::jthread> &threads,
                         std::vector<ThreadPromise<T> *> &awaiters,
                         std::atomic<bool> &done) {
-  std::cout << "Cleaning up" << std::endl;
+  // std::cout << "Cleaning up" << std::endl;
   done.store(true);
   for (auto &thread : threads) {
     thread.join();

@@ -4,24 +4,24 @@
 #include <thread>
 
 struct Accumulator {
-  virtual void add(const unsigned &x){};
+  virtual void add(const unsigned &x) = 0;
   size_t add_get(const unsigned &x) {
     add(x);
     return get();
   };
-  virtual size_t get(){};
+  virtual size_t get() = 0;
 };
 
 struct AtomicAccumulator : public Accumulator {
   std::atomic<size_t> counter{0};
-  void add(unsigned x) { counter.fetch_add(x); }
+  void add(const unsigned &x) { counter.fetch_add(x); }
   size_t add_get(unsigned x) { return counter.fetch_add(x); }
   size_t get() { return counter.load(); }
 };
 
 struct SimpleAccumulator : public Accumulator {
   size_t counter{0};
-  void add(unsigned x) { counter += x; }
+  void add(const unsigned &x) { counter += x; }
   virtual size_t get() { return counter; }
 };
 
@@ -29,18 +29,20 @@ namespace Task {
 
 struct Simple {
   static void apply(const uint16_t &x, const uint16_t &y, Accumulator &T) {
-    T.add_get(x + y);
+    T.add_get(1);
   }
+  inline static const std::string name = "Simple";
 };
 
 struct Buffer {
   static void apply(const uint16_t &x, const uint16_t &y, Accumulator &T) {
     auto current = T.add_get(1);
     if (current % 1000) {
-      // Simulate 1ms workload
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      // Simulate 10us workload
+      std::this_thread::sleep_for(std::chrono::microseconds(10));
     }
   }
+  inline static const std::string name = "Buffer";
 };
 
 struct Complex {
@@ -55,5 +57,6 @@ struct Complex {
 
     T.add(result);
   }
+  inline static const std::string name = "Complex";
 };
 } // namespace Task
