@@ -14,8 +14,24 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 # include_directories("aestream/include")
 # add_subdirectory("aestream")
 
+# Include dirs
+include_directories(include)
+
 # AEDAT4 processing
-add_executable(aestream-paper src/blocking_queue.cpp src/noop.hpp src/noop.cpp src/benchmark.cpp)
+add_executable(aestream-paper-threadpool
+
+    # include/noop.hpp
+    include/benchmark/base.hpp
+    include/benchmark/tp.hpp
+
+    # src/blocking_queue.cpp
+    # src/noop.cpp
+    # src/benchmark.cpp
+    src/benchmark/base.cpp
+    src/benchmark/tp.cpp
+    src/tp_main.cpp
+)
+
 # add_executable(noop src/noop.cpp src/noop.hpp)
 # target_link_libraries(aestream-paper PUBLIC aestream_lib)
 # add_executable(interrupt src/interrupt.cpp)
