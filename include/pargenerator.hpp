@@ -17,16 +17,35 @@ template <typename PromiseType> struct GetPromise {
   PromiseType *await_resume() { return obj; }
 };
 
-template <typename T, typename V> struct ThreadAwaiter {
+template <typename PromiseType, std::movable T> struct ThreadAwaiter {
   struct promise_type {
     std::exception_ptr current_exception;
-    ThreadAwaiter<T> get_return_object() {
-      return ThreadAwaiter<T>{
+    ThreadAwaiter<PromiseType, T> get_return_object() {
+      return ThreadAwaiter<PromiseType, T>{
           .coro = std::coroutine_handle<promise_type>::from_promise(*this)};
     }
-    std::optional<V> value{};
-  }
-}
+    std::optional<std::function<void(T)>> callback{};
+    std::optional<T> value;
+    std::coroutine_handle<PromiseType> return_handle;
+
+    std::coroutine_handle<> await_suspend(std::coroutine_handle<> h) {
+      if (current_exception) {
+        std::rethrow_exception(current_exception);
+      }
+      return std::noop_coroutine();
+    }
+    std::suspend_never initial_suspend() { return {}; }
+    std::suspend_never final_suspend() noexcept { return {}; }
+    void return_void() {}
+    void unhandled_exception() noexcept {
+      current_exception = std::current_exception();
+    }
+    bool await_ready() { return false; }
+    void await_resume() {}
+  };
+  std::coroutine_handle<promise_type> coro;
+  operator std::coroutine_handle<>() { return coro; }
+};
 
 template <std::movable T>
 class Generator {
@@ -60,7 +79,8 @@ public:
   using Handle = coroutinestd::coroutine_handle<promise_type>;
   struct HandleState {
     std::atomic<bool> done{false};
-    std::vector<const Handle> handles = {};
+    const Handle generating_handle = {};
+    std::vector<const Handle> receiving_handles = {};
     size_t current_index{0};
     const Handle current_handle() { return handles[current_index]; }
     const Handle next_handle() {

@@ -32,7 +32,6 @@ template <typename PromiseType, std::movable T> struct ThreadAwaiter
         .coro = std::coroutine_handle<promise_type>::from_promise(*this)};
     }
     std::optional<std::function<void(T)>> callback{};
-    std::timed_mutex callback_lock;
     std::optional<T> value;
     std::coroutine_handle<PromiseType> return_handle;
 
