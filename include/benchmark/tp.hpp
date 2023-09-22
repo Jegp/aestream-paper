@@ -8,15 +8,14 @@ class ThreadPoolBenchmark: public BaseBenchmark
 {
 public:
   ThreadPoolBenchmark(const std::string& name,
-                      const std::vector<size_t> event_sizes,
                       const std::vector<size_t> buffer_sizes,
                       const std::vector<size_t> thread_counts,
-                      const TaskType task);
+                      const TaskType task, const std::string task_name, const size_t checksum);
 
 
-  void prepare(const size_t n_threads, const size_t n_buffer_size, const size_t event_count);
+  void prepare(const size_t n_threads, const size_t n_buffer_size);
   void cleanup();
-  virtual void benchmark(const size_t n_runs);
+  virtual void benchmark(const size_t n_runs, const std::vector<AER::Event>& events);
 
 private:
   uptr<ThreadPool> tp{ nullptr };

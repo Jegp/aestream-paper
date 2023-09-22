@@ -16,29 +16,23 @@ class BaseBenchmark
 {
 public:
     BaseBenchmark(const std::string& name,
-                   const std::vector<size_t> event_counts,
-                   const std::vector<size_t> buffer_sizes,
-                   const std::vector<size_t> thread_counts,
-                   const TaskType task);
+                   const TaskType task, const std::string task_name, const size_t checksum);
 
-    virtual void benchmark(const size_t n_runs) = 0;
-    void run(const size_t count);
+    virtual void benchmark(const size_t n_runs, const std::vector<AER::Event>& events) = 0;
+    void run(const size_t count, const std::vector<AER::Event>& events);
     void compute_stats();
 
+    std::vector<Result> results;
 protected:
     std::string name{ "Benchmark" };
-    std::vector<size_t> event_counts{};
-    std::vector<size_t> buffer_sizes{};
-    std::vector<size_t> thread_counts{};
     TaskType task;
+    std::string task_name;
 
-    size_t checksum{ 0 };
+    const size_t checksum;
     double mean{ 0.0 };
     double sd{ 0.0 };
     size_t output{ 0 };
     std::vector<size_t> runtimes;
-    std::vector<AER::Event> events;
-    std::vector<Result> results;
 };
 
 #endif // BENCHMARK_HPP

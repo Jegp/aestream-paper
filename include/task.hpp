@@ -36,8 +36,10 @@ struct SimpleAccumulator: public Accumulator
 
 namespace Task
 {
+
   using TaskType =
     std::function<void(const uint16_t& x, const uint16_t& y, Accumulator&)>;
+
   struct Simple
   {
     static void apply(const uint16_t& x, const uint16_t& y, Accumulator& T)

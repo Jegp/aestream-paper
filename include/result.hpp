@@ -5,6 +5,7 @@
 struct Result
 {
   std::string name;
+  std::string task;
   size_t threads;
   size_t buffer_size;
   size_t events;

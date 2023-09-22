@@ -18,14 +18,14 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 include_directories(include)
 
 # AEDAT4 processing
-add_executable(aestream-paper-threadpool
+add_executable(aestream-paper
 
-    # include/noop.hpp
+    include/noop.hpp
     include/benchmark/base.hpp
     include/benchmark/tp.hpp
 
     # src/blocking_queue.cpp
-    # src/noop.cpp
+    src/noop.cpp
     # src/benchmark.cpp
     src/benchmark/base.cpp
     src/benchmark/tp.cpp
