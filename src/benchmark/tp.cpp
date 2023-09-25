@@ -13,7 +13,8 @@ ThreadPoolBenchmark::ThreadPoolBenchmark(
     const std::string &name, const std::vector<size_t> buffer_sizes,
     const std::vector<size_t> thread_counts, const TaskType task,
     const std::string &task_name)
-    : BaseBenchmark(name, task, task_name) {}
+    : BaseBenchmark(name, task, task_name), buffer_sizes(buffer_sizes),
+      thread_counts(thread_counts) {}
 
 CoroTask ThreadPoolBenchmark::run_task(const size_t x, const size_t y,
                                        AtomicAccumulator &acc) {
@@ -31,6 +32,7 @@ void ThreadPoolBenchmark::benchmark(const size_t n_runs,
     for (size_t thread_count : thread_counts) {
 
       for (size_t run = 0; run < n_runs; ++run) {
+        std::cout << "Running " << run << std::endl;
         // An atomic to hold the checksum
         AtomicAccumulator acc{};
         tp = std::make_unique<ThreadPool>(thread_count, buffer_size);

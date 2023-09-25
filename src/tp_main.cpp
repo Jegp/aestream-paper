@@ -325,8 +325,6 @@ int main(int argc, char const *argv[]) {
   size_t n_runs = 4;
   // std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
-  ThreadPoolBenchmark tpb{"ThreadPool", buffer_sizes, thread_counts,
-                          Task::Simple{}.apply, Task::Simple::name};
   // for (int i = 109; i < 114; i++) {
   for (int i = 50; i < 70; i++) {
     auto event_count = long(pow(1.2, i));
@@ -367,8 +365,19 @@ int main(int argc, char const *argv[]) {
                          ss2);
 
     // Threadpool
-    tpb.run(n_runs, events_simple, check_simple);
-    results.insert(results.end(), tpb.results.begin(), tpb.results.end());
+    // ThreadPoolBenchmark tpb{"ThreadPool", buffer_sizes, thread_counts,
+    // Task::Simple{}.apply, Task::Simple::name};
+    // tpb.run(n_runs, events_simple, check_simple);
+    // results.insert(results.end(), tpb.results.begin(), tpb.results.end());
+    // ThreadPoolBenchmark tpb2{"ThreadPool", buffer_sizes, thread_counts,
+    //  Task::Buffer{}.apply, Task::Buffer::name};
+    // tpb2.run(n_runs, events_buffer, check_buffer);
+    // tpb.cleanup();
+    // results.insert(results.end(), tpb2.results.begin(), tpb2.results.end());
+    ThreadPoolBenchmark tpb3{"ThreadPool", buffer_sizes, thread_counts,
+                             Task::Complex{}.apply, Task::Complex::name};
+    tpb3.run(n_runs, events_complex, check_complex);
+    results.insert(results.end(), tpb3.results.begin(), tpb3.results.end());
 
     // Coroutine
     auto threads = std::thread::hardware_concurrency();
