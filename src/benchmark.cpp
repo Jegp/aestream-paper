@@ -200,7 +200,7 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
   for (auto task : tasks) {
     for (size_t buffer_size : buffer_sizes) {
       for (size_t n_threads : threads) {
-        run_threadpool(Task::Simple::apply, "tp_simple", check_simple,
+        run_threadpool(task, "tp_simple", check_simple,
                        n_threads, buffer_size);
         // run_threadpool(Task::Complex::apply, "tp_complex", check_complex,
         //  n_threads, buffer_size);
