@@ -15,14 +15,8 @@ ThreadPoolBenchmark::ThreadPoolBenchmark(
     const std::vector<size_t> thread_counts, const TaskType task)
     : BaseBenchmark(name, event_counts, buffer_sizes, thread_counts, task) {}
 
-void ThreadPoolBenchmark::prepare(const size_t n_threads,
-                                  const size_t buffer_size,
-                                  const size_t event_count) {
+void ThreadPoolBenchmark::prepare(const size_t event_count) {
 
-  std::cout << "Preparing events for benchmark with " << n_threads
-            << " thread(s), buffer size of " << buffer_size << " and "
-            << event_count << " events"
-            << "\n";
   auto acc = SimpleAccumulator();
   const int resolution = RAND_MAX / 1024;
 
@@ -37,7 +31,7 @@ void ThreadPoolBenchmark::prepare(const size_t n_threads,
 }
 
 CoroTask ThreadPoolBenchmark::run_task(const size_t x, const size_t y,
-                                       SimpleAccumulator &acc) {
+                                       AtomicAccumulator &acc) {
   //   scout() << "Before schedule: " << std::this_thread::get_id() << "\n";
   co_await tp->schedule();
   //   scout() << "After schedule: " << std::this_thread::get_id() << "\n";
@@ -47,14 +41,15 @@ CoroTask ThreadPoolBenchmark::run_task(const size_t x, const size_t y,
 void ThreadPoolBenchmark::benchmark(const size_t n_runs) {
 
   for (size_t event_count : event_counts) {
+    std::cout << "Preparing " << event_count << " events\n";
+    prepare(event_count);
     for (size_t buffer_size : buffer_sizes) {
-      for (size_t n_threads : thread_counts) {
-        prepare(n_threads, buffer_size, event_count);
+      for (size_t thread_count : thread_counts) {
 
-        for (size_t i = 0; i < n_runs; ++i) {
+        for (size_t run = 0; run < n_runs; ++run) {
           // An atomic to hold the checksum
-          SimpleAccumulator acc{};
-          tp = std::make_unique<ThreadPool>();
+          AtomicAccumulator acc{};
+          tp = std::make_unique<ThreadPool>(thread_count, buffer_size);
 
           auto before{std::chrono::high_resolution_clock::now()};
           for (const auto &event : events) {
@@ -68,6 +63,7 @@ void ThreadPoolBenchmark::benchmark(const size_t n_runs) {
                               after - before)
                               .count();
 
+          //   scout() << "Scheduled: " << tp->scheduled.load() << "\n";
           //   std::this_thread::sleep_for(1s);
           //   tp = nullptr;
           output = acc.get();
@@ -83,11 +79,15 @@ void ThreadPoolBenchmark::benchmark(const size_t n_runs) {
         }
 
         compute_stats();
-        results.emplace_back(name, n_threads, buffer_size, event_count, n_runs,
-                             mean, sd);
+        results.emplace_back(name, thread_count, buffer_size, event_count,
+                             n_runs, mean, sd);
 
         std::string fname{"results.csv"};
-        scout() << "Saving results to file '" << fname << ")\n";
+        scout() << "Events: " << event_count
+                << " | buffer size: " << buffer_size
+                << " | threads: " << thread_count << "\n";
+        scout() << "Appending results to '" << fname << "\n";
+
         std::ofstream out_file(fname, std::ios::app);
         for (const auto &r : results) {
           out_file << r.name << "," << r.events << "," << r.threads << ","
@@ -95,9 +95,9 @@ void ThreadPoolBenchmark::benchmark(const size_t n_runs) {
                    << r.std << "\n";
         }
         out_file.close();
-        return;
       }
     }
+    return;
   }
 };
 

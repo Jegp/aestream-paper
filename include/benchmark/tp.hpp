@@ -14,10 +14,9 @@ public:
                       const std::vector<size_t> thread_counts,
                       const TaskType task);
 
-  void prepare(const size_t n_threads, const size_t n_buffer_size,
-               const size_t event_count);
+  void prepare(const size_t event_count);
   void cleanup();
-  CoroTask run_task(const size_t x, const size_t y, SimpleAccumulator &acc);
+  CoroTask run_task(const size_t x, const size_t y, AtomicAccumulator &acc);
   void benchmark(const size_t n_runs) override;
 
 private:

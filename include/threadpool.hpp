@@ -77,20 +77,20 @@ public:
       workers.emplace_back(add_worker());
     }
 
-    scout() << "Waiting for workers...\n";
+    // scout() << "Waiting for workers...\n";
     while (sync_point.load() < workers.size())
       ;
     sync_point.store(0);
-    scout() << "Threadpool running...\n";
+    // scout() << "Threadpool running...\n";
   }
 
   ~ThreadPool() noexcept {
-    scout() << "Threadpool stopping...\n";
+    // scout() << "Threadpool stopping...\n";
     halt = true;
-    scout() << "Waiting for workers...\n";
+    // scout() << "Waiting for workers...\n";
     while (sync_point.load() < workers.size())
       ;
-    scout() << "Threadpool exiting...\n";
+    // scout() << "Threadpool exiting...\n";
   }
 
   void enqueue(std::coroutine_handle<> handle) {
