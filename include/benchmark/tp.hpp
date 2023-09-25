@@ -4,25 +4,24 @@
 #include "benchmark/base.hpp"
 #include <vector>
 
-class ThreadPoolBenchmark: public BaseBenchmark
-{
+using namespace Async;
+
+class ThreadPoolBenchmark : public BaseBenchmark {
 public:
-  ThreadPoolBenchmark(const std::string& name,
-                      const std::vector<size_t> event_sizes,
+  ThreadPoolBenchmark(const std::string &name,
+                      const std::vector<size_t> event_counts,
                       const std::vector<size_t> buffer_sizes,
                       const std::vector<size_t> thread_counts,
                       const TaskType task);
 
-
-  void prepare(const size_t n_threads, const size_t n_buffer_size, const size_t event_count);
+  void prepare(const size_t n_threads, const size_t n_buffer_size,
+               const size_t event_count);
   void cleanup();
-  virtual void benchmark(const size_t n_runs);
+  CoroTask run_task(const size_t x, const size_t y, SimpleAccumulator &acc);
+  void benchmark(const size_t n_runs) override;
 
 private:
-  uptr<ThreadPool> tp{ nullptr };
-  size_t current_tp_size;
-  std::vector<size_t> buffer_sizes{};
-  std::vector<size_t> thread_counts{};
+  uptr<ThreadPool> tp{nullptr};
 };
 
 #endif // THREADPOOLBENCHMARK_HPP
