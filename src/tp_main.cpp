@@ -325,9 +325,8 @@ int main(int argc, char const *argv[]) {
   size_t n_runs = 4;
   // std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
-  ThreadPoolBenchmark tpb{"ThreadPool",       buffer_sizes,
-                          thread_counts,      Task::Simple{}.apply,
-                          Task::Simple::name, 0};
+  ThreadPoolBenchmark tpb{"ThreadPool", buffer_sizes, thread_counts,
+                          Task::Simple{}.apply, Task::Simple::name};
   // for (int i = 109; i < 114; i++) {
   for (int i = 50; i < 70; i++) {
     auto event_count = long(pow(1.2, i));
