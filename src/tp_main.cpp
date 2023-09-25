@@ -1,6 +1,7 @@
 #include <cassert>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -325,11 +326,8 @@ int main(int argc, char const *argv[]) {
   size_t n_runs = 4;
   // std::vector<size_t> buffer_sizes = {512, 1024, 2048, 4096, 8192, 16384};
 
-  ThreadPoolBenchmark tpb{"ThreadPool",       buffer_sizes,
-                          thread_counts,      Task::Simple{}.apply,
-                          Task::Simple::name, 0};
   // for (int i = 109; i < 114; i++) {
-  for (int i = 50; i < 70; i++) {
+  for (size_t i = 50; i < 70; i++) {
     auto event_count = long(pow(1.2, i));
     auto [events_simple, check_simple] =
         generate_events(event_count, Task::Simple::apply);
@@ -368,8 +366,10 @@ int main(int argc, char const *argv[]) {
                          ss2);
 
     // Threadpool
-    // tpb.run(n_runs, events_simple);
-    // results.insert(results.end(), tpb.results.begin(), tpb.results.end());
+    ThreadPoolBenchmark tpb("ThreadPool", buffer_sizes, thread_counts,
+                            Task::Simple{}.apply, Task::Simple::name);
+    tpb.run(n_runs, events_simple, check_simple);
+    results.insert(results.end(), tpb.results.begin(), tpb.results.end());
 
     // Coroutine
     auto threads = std::thread::hardware_concurrency();
@@ -377,7 +377,7 @@ int main(int argc, char const *argv[]) {
       threads -= 1;
     }
     std::vector<size_t> times{};
-    for (int i = 0; i < n_runs; i++) {
+    for (size_t i = 0; i < n_runs; i++) {
       bench_co_par(events_simple, Task::Simple::apply, check_simple, times,
                    threads);
     }
@@ -391,7 +391,7 @@ int main(int argc, char const *argv[]) {
     results.emplace_back("conoop", "simple", threads, 0, event_count, n_runs,
                          mean, stddev);
 
-    for (int i = 0; i < n_runs; i++) {
+    for (size_t i = 0; i < n_runs; i++) {
       bench_co_par(events_buffer, Task::Buffer::apply, check_buffer, times,
                    threads);
     }
@@ -405,7 +405,7 @@ int main(int argc, char const *argv[]) {
     results.emplace_back("conoop", "buffer", threads, 0, event_count, n_runs,
                          mean1, stddev1);
 
-    for (int i = 0; i < n_runs; i++) {
+    for (size_t i = 0; i < n_runs; i++) {
       bench_co_par(events_complex, Task::Complex::apply, check_complex, times,
                    threads);
     }

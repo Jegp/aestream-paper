@@ -1,6 +1,7 @@
 #pragma once
 
 #include <coroutine>
+#include <cstddef>
 #include <functional>
 #include <iostream>
 #include <mutex>
@@ -9,36 +10,29 @@
 
 #include "result.hpp"
 
-template <typename PromiseType> struct GetPromise
-{
-  PromiseType* obj;
+template <typename PromiseType> struct GetPromise {
+  PromiseType *obj;
   bool await_ready() { return false; } // False: call await_suspend
-  bool await_suspend(std::coroutine_handle<PromiseType> h)
-  {
+  bool await_suspend(std::coroutine_handle<PromiseType> h) {
     obj = &h.promise();
     return false; // False: don't suspend
   }
-  PromiseType* await_resume() { return obj; }
+  PromiseType *await_resume() { return obj; }
 };
 
-template <typename PromiseType, std::movable T> struct ThreadAwaiter
-{
-  struct promise_type
-  {
+template <typename PromiseType, std::movable T> struct ThreadAwaiter {
+  struct promise_type {
     std::exception_ptr current_exception;
-    ThreadAwaiter<PromiseType, T> get_return_object()
-    {
+    ThreadAwaiter<PromiseType, T> get_return_object() {
       return ThreadAwaiter<PromiseType, T>{
-        .coro = std::coroutine_handle<promise_type>::from_promise(*this)};
+          .coro = std::coroutine_handle<promise_type>::from_promise(*this)};
     }
     std::optional<std::function<void(T)>> callback{};
     std::optional<T> value;
     std::coroutine_handle<PromiseType> return_handle;
 
-    std::coroutine_handle<> await_suspend(std::coroutine_handle<> h)
-    {
-      if (current_exception)
-      {
+    std::coroutine_handle<> await_suspend(std::coroutine_handle<> h) {
+      if (current_exception) {
         std::rethrow_exception(current_exception);
       }
       return std::noop_coroutine();
@@ -46,8 +40,7 @@ template <typename PromiseType, std::movable T> struct ThreadAwaiter
     std::suspend_never initial_suspend() { return {}; }
     std::suspend_never final_suspend() noexcept { return {}; }
     void return_void() {}
-    void unhandled_exception() noexcept
-    {
+    void unhandled_exception() noexcept {
       current_exception = std::current_exception();
     }
     bool await_ready() { return false; }
@@ -57,21 +50,18 @@ template <typename PromiseType, std::movable T> struct ThreadAwaiter
   operator std::coroutine_handle<>() { return coro; }
 };
 
-template <std::movable T> struct ReturnObject
-{
-  static inline unsigned int current_awaiter{ 0 };
+template <std::movable T> struct ReturnObject {
+  static inline unsigned int current_awaiter{0};
 
-  struct promise_type
-  {
+  struct promise_type {
     using ReturnType = ReturnObject<T>;
     using ThreadAwaiterType =
-      ThreadAwaiter<ReturnType::promise_type, T>::promise_type;
-    std::vector<ThreadAwaiterType*> awaiters;
+        ThreadAwaiter<ReturnType::promise_type, T>::promise_type;
+    std::vector<ThreadAwaiterType *> awaiters;
     std::exception_ptr current_exception;
-    ReturnObject<T> get_return_object()
-    {
+    ReturnObject<T> get_return_object() {
       return ReturnObject{
-          .coro = std::coroutine_handle<promise_type>::from_promise(*this) };
+          .coro = std::coroutine_handle<promise_type>::from_promise(*this)};
     }
     // std::coroutine_handle<>
     // await_suspend(std::coroutine_handle<ReturnObject::promise_type> h) {
@@ -81,18 +71,15 @@ template <std::movable T> struct ReturnObject
     // do_dumb_stuff<T>(h, awaiter);
     // return std::noop_coroutine();
     // }
-    std::suspend_never yield_value(T value)
-    {
+    std::suspend_never yield_value(T value) {
       int index = current_awaiter++ % awaiters.size();
       // auto coro = std::coroutine_handle<promise_type>::from_promise(*this);
-      int attempt = 0;
-      while (awaiters[index]->value.has_value())
-      {
+      size_t attempt = 0;
+      while (awaiters[index]->value.has_value()) {
         std::this_thread::yield();
         index = current_awaiter++ % awaiters.size();
         attempt++;
-        if (attempt >= awaiters.size())
-        {
+        if (attempt >= awaiters.size()) {
           break;
         }
       }
@@ -111,17 +98,13 @@ template <std::movable T> struct ReturnObject
     void return_void() {}
     void unhandled_exception() { current_exception = std::current_exception(); }
     bool await_ready() { return false; }
-    void await_resume()
-    {
-      if (current_exception)
-      {
+    void await_resume() {
+      if (current_exception) {
         std::rethrow_exception(current_exception);
       }
     }
-    void set_callback(std::function<void(T)> callback)
-    {
-      for (auto& awaiter : awaiters)
-      {
+    void set_callback(std::function<void(T)> callback) {
+      for (auto &awaiter : awaiters) {
         awaiter->callback = callback;
       }
     }
@@ -147,24 +130,21 @@ template <std::movable T> struct ReturnObject
 template <typename T> using ReturnPromise = ReturnObject<T>::promise_type;
 template <std::movable T>
 using ThreadPromise = ThreadAwaiter<ReturnPromise<T>, T>::promise_type;
-template <std::movable T> using AwaiterList = std::vector<ThreadPromise<T>*>;
+template <std::movable T> using AwaiterList = std::vector<ThreadPromise<T> *>;
 
 template <std::movable T>
 ThreadAwaiter<ReturnPromise<T>, T>
-thread_runner(std::vector<ThreadPromise<T>*>& awaiters,
-              std::mutex& awaiter_list_lock, std::atomic<bool>& done)
-{
+thread_runner(std::vector<ThreadPromise<T> *> &awaiters,
+              std::mutex &awaiter_list_lock, std::atomic<bool> &done) {
   auto promise = co_await GetPromise<ThreadPromise<T>>{};
   {
     std::lock_guard<std::mutex> lock(awaiter_list_lock);
     awaiters.push_back(promise);
   }
   // promise->callback_lock.lock(); // Lock until woken up
-  while (!done)
-  {
+  while (!done) {
     {
-      if (promise->value.has_value())
-      {
+      if (promise->value.has_value()) {
         promise->callback.value()(promise->value.value());
         promise->value.reset();
         // promise->return_handle.resume();
@@ -190,17 +170,13 @@ thread_runner(std::vector<ThreadPromise<T>*>& awaiters,
 template <typename T, std::movable V>
 ThreadAwaiter<ReturnPromise<T>, V>
 do_dumb_stuff(std::coroutine_handle<ReturnPromise<T>> h,
-              ThreadPromise<T>* awaiter)
-{
+              ThreadPromise<T> *awaiter) {
   // if (awaiter->return_handle.has_value()) {
   // !awaiter->return_handle.value().done()) {
-  if (!awaiter->return_handle.has_value())
-  {
+  if (!awaiter->return_handle.has_value()) {
     // awaiter->return_handle = {h};
     co_await *awaiter;
-  }
-  else
-  {
+  } else {
     std::cout << "Has value" << std::endl;
   }
 }
@@ -221,14 +197,12 @@ do_dumb_stuff(std::coroutine_handle<ReturnPromise<T>> h,
 // }
 
 template <std::movable T>
-void cleanup_coroutines(std::vector<std::jthread>& threads,
-                        std::vector<ThreadPromise<T>*>& awaiters,
-                        std::atomic<bool>& done)
-{
+void cleanup_coroutines(std::vector<std::jthread> &threads,
+                        std::vector<ThreadPromise<T> *> &awaiters,
+                        std::atomic<bool> &done) {
   // std::cout << "Cleaning up" << std::endl;
   done.store(true);
-  for (auto& thread : threads)
-  {
+  for (auto &thread : threads) {
     thread.join();
   }
 }

@@ -7,21 +7,22 @@
 #include "benchmark/tp.hpp"
 
 BaseBenchmark::BaseBenchmark(const std::string &name,
-                             const std::vector<size_t> event_counts,
                              const std::vector<size_t> buffer_sizes,
                              const std::vector<size_t> thread_counts,
-                             const TaskType task)
-    : name(name), event_counts(event_counts), buffer_sizes(buffer_sizes),
-      thread_counts(thread_counts), task(task) {}
+                             const TaskType task, const std::string &task_name)
+    : name(name), buffer_sizes(buffer_sizes), thread_counts(thread_counts),
+      task(task), task_name(task_name) {}
 
-void BaseBenchmark::run(const size_t n_runs) {
+void BaseBenchmark::run(const size_t n_runs,
+                        const std::vector<AER::Event> &events,
+                        const size_t checksum) {
 
   try {
 
     std::cout << "Running benchmark '" << name << "'\n";
 
     // Run the benchmark
-    this->benchmark(n_runs);
+    this->benchmark(n_runs, events, checksum);
 
   } catch (std::exception &e) {
     std::cout << "Stream ending for " << name << ": " << e.what() << std::endl;

@@ -10,10 +10,10 @@
 using namespace Async;
 
 ThreadPoolBenchmark::ThreadPoolBenchmark(
-    const std::string &name, const std::vector<size_t> event_counts,
-    const std::vector<size_t> buffer_sizes,
-    const std::vector<size_t> thread_counts, const TaskType task)
-    : BaseBenchmark(name, event_counts, buffer_sizes, thread_counts, task) {}
+    const std::string &name, const std::vector<size_t> buffer_sizes,
+    const std::vector<size_t> thread_counts, const TaskType task,
+    const std::string &task_name)
+    : BaseBenchmark(name, buffer_sizes, thread_counts, task, task_name) {}
 
 void ThreadPoolBenchmark::prepare(const size_t event_count) {
 
@@ -38,66 +38,64 @@ CoroTask ThreadPoolBenchmark::run_task(const size_t x, const size_t y,
   task(x, y, acc);
 }
 
-void ThreadPoolBenchmark::benchmark(const size_t n_runs) {
+void ThreadPoolBenchmark::benchmark(const size_t n_runs,
+                                    const std::vector<AER::Event> &events,
+                                    const size_t checksum) {
 
-  for (size_t event_count : event_counts) {
-    std::cout << "Preparing " << event_count << " events\n";
-    prepare(event_count);
-    for (size_t buffer_size : buffer_sizes) {
-      for (size_t thread_count : thread_counts) {
+  for (size_t buffer_size : buffer_sizes) {
+    for (size_t thread_count : thread_counts) {
 
-        for (size_t run = 0; run < n_runs; ++run) {
-          // An atomic to hold the checksum
-          AtomicAccumulator acc{};
-          tp = std::make_unique<ThreadPool>(thread_count, buffer_size);
+      for (size_t run = 0; run < n_runs; ++run) {
+        // An atomic to hold the checksum
+        AtomicAccumulator acc{};
+        tp = std::make_unique<ThreadPool>(thread_count, buffer_size);
 
-          auto before{std::chrono::high_resolution_clock::now()};
-          for (const auto &event : events) {
-            run_task(event.x, event.y, acc);
-          }
-
-          tp->sync();
-
-          auto after{std::chrono::high_resolution_clock::now()};
-          auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                              after - before)
-                              .count();
-
-          //   scout() << "Scheduled: " << tp->scheduled.load() << "\n";
-          //   std::this_thread::sleep_for(1s);
-          //   tp = nullptr;
-          output = acc.get();
-          if (output != checksum) {
-            // Do something interesting.
-            scout() << "WARNING: invalid checksum '" << output
-                    << "' (should be " << checksum << ")\n";
-
-            // throw std::runtime_error("Checksum failed");
-          }
-
-          runtimes.push_back(duration);
+        auto before{std::chrono::high_resolution_clock::now()};
+        for (const auto &event : events) {
+          run_task(event.x, event.y, acc);
         }
 
-        compute_stats();
-        results.emplace_back(name, thread_count, buffer_size, event_count,
-                             n_runs, mean, sd);
+        tp->sync();
 
-        std::string fname{"results.csv"};
-        scout() << "Events: " << event_count
-                << " | buffer size: " << buffer_size
-                << " | threads: " << thread_count << "\n";
-        scout() << "Appending results to '" << fname << "\n";
+        auto after{std::chrono::high_resolution_clock::now()};
+        auto duration =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(after - before)
+                .count();
 
-        std::ofstream out_file(fname, std::ios::app);
-        for (const auto &r : results) {
-          out_file << r.name << "," << r.events << "," << r.threads << ","
-                   << r.buffer_size << "," << r.n << "," << r.mean << ","
-                   << r.std << "\n";
+        //   scout() << "Scheduled: " << tp->scheduled.load() << "\n";
+        //   std::this_thread::sleep_for(1s);
+        //   tp = nullptr;
+        output = acc.get();
+        if (output != checksum) {
+          // Do something interesting.
+          scout() << "WARNING: invalid checksum '" << output << "' (should be "
+                  << checksum << ")\n";
+
+          // throw std::runtime_error("Checksum failed");
         }
-        out_file.close();
+
+        runtimes.push_back(duration);
       }
+
+      compute_stats();
+
+      results.emplace_back(name, task_name, thread_count, buffer_size,
+                           events.size(), n_runs, mean, sd);
+
+      //   std::string fname{"results.csv"};
+      //   scout() << "Events: " << event_count << " | buffer size: " <<
+      //   buffer_size
+      //           << " | threads: " << thread_count << "\n";
+
+      //   std::ofstream out_file(fname, std::ios::app);
+      //   for (const auto &r : results) {
+      //     out_file << r.name << "," << r.events << "," << r.threads << ","
+      //              << r.buffer_size << "," << r.n << "," << r.mean << "," <<
+      //              r.std
+      //              << "\n";
+      //   }
+      //   out_file.close();
     }
-    return;
   }
 };
 
