@@ -4,6 +4,7 @@
 #include <atomic>
 #include <barrier>
 #include <coroutine>
+#include <cstddef>
 #include <iostream>
 #include <mutex>
 #include <syncstream>
@@ -40,12 +41,6 @@ struct CoroTask {
   explicit CoroTask(std::coroutine_handle<promise_type> handle)
       : m_handle(handle) {}
 
-  ~CoroTask() {
-    if (m_handle.done()) {
-      m_handle.destroy();
-    }
-  }
-
 private:
   std::coroutine_handle<promise_type> m_handle;
 };
@@ -69,13 +64,13 @@ private:
   // A container for all the worker threads.
   std::vector<std::jthread> workers;
 
-  // A barrier for synchronisation purposes
-  std::barrier<> barrier;
+  // A rudimentary synchronisation point
+  auint sync_point;
 
 public:
   ThreadPool(const uint worker_count = std::thread::hardware_concurrency(),
              const uint buffer_size = 1024)
-      : barrier{static_cast<std::ptrdiff_t>(worker_count + 1)} {
+      : sync_point{0} {
     handles.reserve(buffer_size);
 
     for (uint i = 0; i < worker_count; ++i) {
@@ -83,7 +78,9 @@ public:
     }
 
     scout() << "Waiting for workers...\n";
-    barrier.arrive_and_wait();
+    while (sync_point.load() < workers.size())
+      ;
+    sync_point.store(0);
     scout() << "Threadpool running...\n";
   }
 
@@ -91,7 +88,8 @@ public:
     scout() << "Threadpool stopping...\n";
     halt = true;
     scout() << "Waiting for workers...\n";
-    barrier.arrive_and_wait();
+    while (sync_point.load() < workers.size())
+      ;
     scout() << "Threadpool exiting...\n";
   }
 
@@ -115,7 +113,9 @@ public:
   void sync() {
 
     synchronise = true;
-    barrier.arrive_and_wait();
+    while (sync_point.load() < workers.size())
+      ;
+    sync_point.store(0);
     synchronise = false;
   }
 
@@ -126,20 +126,23 @@ private:
     constexpr bool await_ready() const noexcept { return false; }
     constexpr void await_resume() const noexcept {}
 
-    // std::coroutine_handle<>
-    void await_suspend(std::coroutine_handle<> handle) const noexcept {
+    std::coroutine_handle<>
+    await_suspend(std::coroutine_handle<> handle) const noexcept {
       tp.enqueue(handle);
-      //   return std::noop_coroutine();
+      return std::noop_coroutine();
     }
   };
   std::jthread add_worker() {
     return std::jthread([&]() mutable {
       std::vector<std::coroutine_handle<>> buffer;
 
-      barrier.arrive_and_wait();
-      while (!halt) {
+      sync_point.fetch_add(1);
+      while (true) {
         {
           const lguard lg(mtx);
+          if (halt && handles.size() == 0) {
+            break;
+          }
           buffer.swap(handles);
         }
 
@@ -147,14 +150,17 @@ private:
         //         << buffer.size() << " coroutines\n";
         for (auto handle : buffer) {
           handle.resume();
+          if (handle.done()) {
+            handle.destroy();
+          }
         }
         buffer.clear();
         if (synchronise) {
-          barrier.arrive_and_wait();
+          sync_point.fetch_add(1);
         }
       }
 
-      barrier.arrive_and_wait();
+      sync_point.fetch_add(1);
     });
   }
 };

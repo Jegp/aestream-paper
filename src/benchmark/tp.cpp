@@ -1,8 +1,11 @@
 #include "benchmark/tp.hpp"
+#include "task.hpp"
 #include "threadpool.hpp"
 #include <cstddef>
+#include <cstdio>
 #include <fstream>
 #include <thread>
+#include <vector>
 
 using namespace Async;
 
@@ -31,7 +34,6 @@ void ThreadPoolBenchmark::prepare(const size_t n_threads,
   }
 
   checksum = acc.get();
-  tp = std::make_unique<ThreadPool>();
 }
 
 CoroTask ThreadPoolBenchmark::run_task(const size_t x, const size_t y,
@@ -51,18 +53,23 @@ void ThreadPoolBenchmark::benchmark(const size_t n_runs) {
 
         for (size_t i = 0; i < n_runs; ++i) {
           // An atomic to hold the checksum
-          auto acc = SimpleAccumulator();
+          SimpleAccumulator acc{};
+          tp = std::make_unique<ThreadPool>();
 
-          auto before = std::chrono::high_resolution_clock::now();
+          auto before{std::chrono::high_resolution_clock::now()};
           for (const auto &event : events) {
             run_task(event.x, event.y, acc);
           }
 
           tp->sync();
-          auto after = std::chrono::high_resolution_clock::now();
+
+          auto after{std::chrono::high_resolution_clock::now()};
           auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
                               after - before)
                               .count();
+
+          //   std::this_thread::sleep_for(1s);
+          //   tp = nullptr;
           output = acc.get();
           if (output != checksum) {
             // Do something interesting.
@@ -80,6 +87,7 @@ void ThreadPoolBenchmark::benchmark(const size_t n_runs) {
                              mean, sd);
 
         std::string fname{"results.csv"};
+        scout() << "Saving results to file '" << fname << ")\n";
         std::ofstream out_file(fname, std::ios::app);
         for (const auto &r : results) {
           out_file << r.name << "," << r.events << "," << r.threads << ","
