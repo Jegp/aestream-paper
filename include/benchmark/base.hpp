@@ -12,27 +12,30 @@ using namespace std::chrono_literals;
 using namespace Async;
 using namespace Task;
 
-class BaseBenchmark
-{
+class BaseBenchmark {
 public:
-    BaseBenchmark(const std::string& name,
-                   const TaskType task, const std::string task_name, const size_t checksum);
+  BaseBenchmark(const std::string &name, const std::vector<size_t> event_counts,
+                const std::vector<size_t> buffer_sizes,
+                const std::vector<size_t> thread_counts, const TaskType task);
 
-    virtual void benchmark(const size_t n_runs, const std::vector<AER::Event>& events) = 0;
-    void run(const size_t count, const std::vector<AER::Event>& events);
-    void compute_stats();
+  virtual void benchmark(const size_t n_runs) = 0;
+  void run(const size_t count);
+  void compute_stats();
 
-    std::vector<Result> results;
 protected:
-    std::string name{ "Benchmark" };
-    TaskType task;
-    std::string task_name;
+  std::string name{"Benchmark"};
+  std::vector<size_t> event_counts;
+  std::vector<size_t> buffer_sizes;
+  std::vector<size_t> thread_counts;
+  TaskType task;
 
-    const size_t checksum;
-    double mean{ 0.0 };
-    double sd{ 0.0 };
-    size_t output{ 0 };
-    std::vector<size_t> runtimes;
+  size_t checksum{0};
+  double mean{0.0};
+  double sd{0.0};
+  size_t output{0};
+  std::vector<size_t> runtimes;
+  std::vector<AER::Event> events;
+  std::vector<Result> results;
 };
 
 #endif // BENCHMARK_HPP
