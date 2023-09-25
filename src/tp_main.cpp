@@ -367,8 +367,8 @@ int main(int argc, char const *argv[]) {
                          ss2);
 
     // Threadpool
-    // tpb.run(n_runs, events_simple);
-    // results.insert(results.end(), tpb.results.begin(), tpb.results.end());
+    tpb.run(n_runs, events_simple, check_simple);
+    results.insert(results.end(), tpb.results.begin(), tpb.results.end());
 
     // Coroutine
     auto threads = std::thread::hardware_concurrency();
