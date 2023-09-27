@@ -229,7 +229,6 @@ std::vector<Result> run_once(size_t n_events, size_t n_runs,
                          mean, stddev);
   }
 
-
   for (auto task : tasks) {
     ThreadPoolBenchmark tpb{"ThreadPool", buffer_sizes,
                             thread_counts, Task::Simple{}.apply};

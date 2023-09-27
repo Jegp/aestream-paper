@@ -27,7 +27,7 @@ add_executable(aestream-paper
 
     # src/blocking_queue.cpp
     src/noop.cpp
-    # src/benchmark.cpp
+    #src/benchmark.cpp
     src/benchmark/base.cpp
     src/benchmark/tp.cpp
     src/tp_main.cpp
