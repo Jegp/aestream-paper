@@ -17,7 +17,8 @@ ThreadPoolBenchmark::ThreadPoolBenchmark(
 
 void ThreadPoolBenchmark::prepare( const size_t event_count )
 {
-    auto acc = SimpleAccumulator();
+    AtomicAccumulator aa{};
+    Accumulator* acc = &aa;
     const int resolution = RAND_MAX / 1024;
 
     for ( size_t i = 0; i < event_count; ++i )
@@ -29,7 +30,7 @@ void ThreadPoolBenchmark::prepare( const size_t event_count )
     }
 }
 
-CoroTask ThreadPoolBenchmark::run_task( const size_t x, const size_t y, AtomicAccumulator& acc )
+CoroTask ThreadPoolBenchmark::run_task( const size_t x, const size_t y, Accumulator* acc )
 {
     //   scout() << "Before schedule: " << std::this_thread::get_id() << "\n";
     co_await tp->schedule();
@@ -48,7 +49,8 @@ void ThreadPoolBenchmark::benchmark( const size_t n_runs,
             for ( size_t run = 0; run < n_runs; ++run )
             {
                 // An atomic to hold the checksum
-                AtomicAccumulator acc{};
+                AtomicAccumulator aa{};
+                Accumulator* acc = &aa;
                 tp = std::make_unique<ThreadPool>( thread_count, buffer_size );
 
                 auto before{ std::chrono::high_resolution_clock::now() };
@@ -66,7 +68,9 @@ void ThreadPoolBenchmark::benchmark( const size_t n_runs,
 
                 //                scout() << "Scheduled: " << tp->scheduled.load() << "\n";
                 //                scout() << "Processed: " << tp->processed.load() << "\n";
-                output = acc.get();
+                //                output = acc.get();
+                //                                scout() << "Accumulated: " << output << " (checksum: " << checksum << ")"
+                //                << "\n";
                 if ( output != checksum )
                 {
                     // Do something interesting.

@@ -41,10 +41,6 @@ namespace Async
                 return {};
             }
 
-            void return_void() noexcept
-            {
-            }
-
             void unhandled_exception() noexcept
             {
                 std::cerr << "Unhandled exception caught...\n";
@@ -85,7 +81,6 @@ namespace Async
 
         // A rudimentary synchronisation point
         auint sync_point{ 0 };
-
 
       public:
 
@@ -146,11 +141,13 @@ namespace Async
         }
 
       private:
+
         void wait()
         {
             while (sync_point < workers.size());
             sync_point.store(0);
         }
+
         struct awaiter
         {
             ThreadPool& tp;
@@ -163,11 +160,13 @@ namespace Async
             {
             }
 
-            void await_suspend(std::coroutine_handle<> handle ) const noexcept
+            std::coroutine_handle<> await_suspend(std::coroutine_handle<> handle ) const noexcept
             {
                 tp.enqueue( handle );
+                return std::noop_coroutine();
             }
         };
+
         std::jthread add_worker()
         {
             return std::jthread( [&]() mutable
@@ -185,13 +184,15 @@ namespace Async
 
             }
 
-            // scout() << "Thread '" << std::this_thread::get_id() << "' resuming "
-            //         << buffer.size() << " coroutines\n";
+//            scout() << "Thread '" << std::this_thread::get_id() << "' resuming "
+//                     << buffer.size() << " coroutines\n";
+
             for (auto handle : buffer) {
               handle.resume();
               if (handle.done()) {
                 handle.destroy();
               }
+
             }
             buffer.clear();
             if (synchronise) {
