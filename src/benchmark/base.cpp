@@ -33,6 +33,5 @@ void BaseBenchmark::compute_stats() {
     dev += pow(runtime - mean, 2);
   }
 
-  std::cout << "Runtimes: " << runtimes.size() << "\n";
   std::sqrt(dev / (runtimes.size() - 1));
 }

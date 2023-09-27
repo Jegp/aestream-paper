@@ -101,12 +101,9 @@ public:
   auto schedule() { return awaiter{*this}; }
 
   void stop() {
-    {
-      const lguard lg{mtx};
+    // Inform the workers that they should stop.
+    halt = true;
 
-      // Inform the workers that they should stop.
-      halt = true;
-    }
     for (auto &worker : workers) {
       worker.join();
     }
