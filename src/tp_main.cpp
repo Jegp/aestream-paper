@@ -129,7 +129,7 @@ std::tuple<float, float> bench_fun(
   for (auto time : times) {
     dev += pow(time - mean, 2);
   }
-  auto stddev = sqrt(dev / times.size());
+  auto stddev = sqrt(dev / (times.size() - 1));
   return {mean, stddev};
 }
 
@@ -288,7 +288,7 @@ std::tuple<float, float> bench_fun(
 //     //   for (auto time : times) {
 //     //     dev += pow(time - mean, 2);
 //     //   }
-//     //   auto stddev = sqrt(dev / times.size());
+//     //   auto stddev = sqrt(dev / (times.size() - 1));
 
 //     //   results.emplace_back("conoop_" + task.name, 0, 0, events.size(),
 //     n_runs,
@@ -365,12 +365,6 @@ int main(int argc, char const *argv[]) {
     results.emplace_back("single", "complex", 0, 0, event_count, n_runs, sm2,
                          ss2);
 
-    // Threadpool
-    ThreadPoolBenchmark tpb("ThreadPool", buffer_sizes, thread_counts,
-                            Task::Simple{}.apply, Task::Simple::name);
-    tpb.run(n_runs, events_simple, check_simple);
-    results.insert(results.end(), tpb.results.begin(), tpb.results.end());
-
     // Coroutine
     auto threads = std::thread::hardware_concurrency();
     if (threads > 2) {
@@ -386,7 +380,7 @@ int main(int argc, char const *argv[]) {
     for (auto time : times) {
       dev += pow(time - mean, 2);
     }
-    auto stddev = sqrt(dev / times.size());
+    auto stddev = sqrt(dev / (times.size() - 1));
 
     results.emplace_back("conoop", "simple", threads, 0, event_count, n_runs,
                          mean, stddev);
@@ -400,7 +394,7 @@ int main(int argc, char const *argv[]) {
     for (auto time : times) {
       dev1 += pow(time - mean, 2);
     }
-    auto stddev1 = sqrt(dev / times.size());
+    auto stddev1 = sqrt(dev / (times.size() - 1));
 
     results.emplace_back("conoop", "buffer", threads, 0, event_count, n_runs,
                          mean1, stddev1);
@@ -414,7 +408,13 @@ int main(int argc, char const *argv[]) {
     for (auto time : times) {
       dev2 += pow(time - mean, 2);
     }
-    auto stddev2 = sqrt(dev / times.size());
+    auto stddev2 = sqrt(dev / (times.size() - 1));
+
+    // Threadpool
+    ThreadPoolBenchmark tpb("ThreadPool", buffer_sizes, thread_counts,
+                            Task::Simple{}.apply, Task::Simple::name);
+    tpb.run(n_runs, events_simple, check_simple);
+    results.insert(results.end(), tpb.results.begin(), tpb.results.end());
 
     results.emplace_back("conoop", "complex", threads, 0, event_count, n_runs,
                          mean2, stddev2);

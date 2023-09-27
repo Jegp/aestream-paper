@@ -34,7 +34,6 @@ protected:
   TaskType task;
   const std::string task_name;
 
-  size_t checksum{0};
   double mean{0.0};
   double sd{0.0};
   size_t output{0};
