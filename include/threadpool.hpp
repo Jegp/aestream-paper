@@ -12,145 +12,168 @@
 #include <utility>
 #include <vector>
 
-static auto scout = []() { return std::osyncstream(std::cout); };
+static auto scout = []()
+{ return std::osyncstream( std::cout ); };
 
 namespace Async
 
 {
-using uint = unsigned long long;
-using auint = std::atomic<uint>;
-template <class T> using uptr = std::unique_ptr<T>;
-using lguard = std::lock_guard<std::mutex>;
-struct CoroTask {
-  struct promise_type {
-    CoroTask get_return_object() noexcept {
-      return CoroTask{std::coroutine_handle<promise_type>::from_promise(*this)};
+    using uint = unsigned long long;
+    using auint = std::atomic<uint>;
+    template <class T>
+    using uptr = std::unique_ptr<T>;
+    using lguard = std::lock_guard<std::mutex>;
+    struct CoroTask
+    {
+        struct promise_type
+        {
+            CoroTask get_return_object() noexcept
+            {
+                return CoroTask{ std::coroutine_handle<promise_type>::from_promise( *this ) };
+            };
+
+            std::suspend_never initial_suspend() const noexcept
+            {
+                return {};
+            }
+            std::suspend_never final_suspend() const noexcept
+            {
+                return {};
+            }
+
+            void unhandled_exception() noexcept
+            {
+                std::cerr << "Unhandled exception caught...\n";
+                exit( 1 );
+            }
+        };
+
+        explicit CoroTask( std::coroutine_handle<promise_type> handle )
+            : m_handle( handle )
+        {
+        }
+
+      private:
+        std::coroutine_handle<promise_type> m_handle;
     };
 
-    std::suspend_never initial_suspend() const noexcept { return {}; }
-    std::suspend_never final_suspend() const noexcept { return {}; }
+    /// @class Threadpool
+    class ThreadPool
+    {
+      private:
+        /// Coroutine handle queue.
+        std::vector<std::coroutine_handle<>> handles;
 
-    void unhandled_exception() noexcept {
-      std::cerr << "Unhandled exception caught...\n";
-      exit(1);
-    }
-  };
+        /// Mutex for the lock guards.
+        std::mutex mtx;
 
-  explicit CoroTask(std::coroutine_handle<promise_type> handle)
-      : m_handle(handle) {}
+        // Flag for signalling threads that they should quit.
+        bool halt{ false };
 
-private:
-  std::coroutine_handle<promise_type> m_handle;
-};
+        // Flag for signalling threads that they should synchronise.
+        bool synchronise{ false };
 
-/// @class Threadpool
-class ThreadPool {
-private:
-  /// Coroutine handle queue.
-  std::vector<std::coroutine_handle<>> handles;
+        // A container for all the worker threads.
+        std::vector<std::jthread> workers;
 
-  /// Mutex for the lock guards.
-  std::mutex mtx;
+        // Explicitly store the worker count
+        uint worker_count{ 0 };
 
-  // Flag for signalling threads that they should quit.
-  bool halt{false};
+        // A rudimentary synchronisation point
+        auint sync_point{ 0 };
 
-  // Flag for signalling threads that they should synchronise.
-  bool synchronise{false};
+      public:
+        ThreadPool( const uint worker_count = std::thread::hardware_concurrency(),
+                    const uint buffer_size = 1024 )
+            : worker_count{ worker_count }, sync_point{ 0 }
+        {
+            handles.reserve( buffer_size );
 
-  // A container for all the worker threads.
-  std::vector<std::jthread> workers;
+            for ( uint i = 0; i < worker_count; ++i )
+            {
+                workers.emplace_back( add_worker() );
+            }
 
-  // Explicitly store the worker count
-  uint worker_count{0};
+            // scout() << "Waiting for workers...\n";
+            wait();
+            // scout() << "Threadpool running...\n";
+        }
 
-  // A rudimentary synchronisation point
-  auint sync_point{0};
+        ~ThreadPool() noexcept
+        {
+            // scout() << "Threadpool stopping...\n";
+            stop();
+            // scout() << "Waiting for workers...\n";
+            wait();
+            // scout() << "Threadpool exiting...\n";
+        }
 
-public:
-  ThreadPool(const uint worker_count = std::thread::hardware_concurrency(),
-             const uint buffer_size = 1024)
-      : worker_count{worker_count}, sync_point{0} {
-    handles.reserve(buffer_size);
+        void enqueue( std::coroutine_handle<> handle )
+        {
+            lguard lg{ mtx };
+            handles.emplace_back( handle );
+        }
 
-    for (uint i = 0; i < worker_count; ++i) {
-      workers.emplace_back(add_worker());
-    }
+        auto schedule()
+        {
+            return awaiter{ *this };
+        }
 
-    // scout() << "Waiting for workers...\n";
-    while (sync_point.load() < workers.size())
-      ;
-    sync_point.store(0);
-    // scout() << "Threadpool running...\n";
-  }
+        void stop()
+        {
+            // Inform the workers that they should stop.
+            halt = true;
+        }
 
-  ~ThreadPool() noexcept {
-    // scout() << "Threadpool stopping...\n";
-    halt = true;
-    // scout() << "Waiting for workers...\n";
-    while (sync_point.load() < workers.size())
-      ;
-    // scout() << "Threadpool exiting...\n";
-  }
+        void sync()
+        {
+            synchronise = true;
+            wait();
+            synchronise = false;
+        }
 
-  void enqueue(std::coroutine_handle<> handle) {
-    lguard lg{mtx};
-    handles.emplace_back(handle);
-  }
+      private:
+        struct awaiter
+        {
+            ThreadPool& tp;
 
-  auto schedule() { return awaiter{*this}; }
+            constexpr bool await_ready() const noexcept
+            {
+                return false;
+            }
+            constexpr void await_resume() const noexcept
+            {
+            }
 
-  void stop() {
-    // Inform the workers that they should stop.
-    halt = true;
+            std::coroutine_handle<>
+            await_suspend( std::coroutine_handle<> handle ) const noexcept
+            {
+                tp.enqueue( handle );
+                return std::noop_coroutine();
+            }
+        };
+        void wait()
+        {
+            while ( sync_point.load() < worker_count )
+                ;
+            sync_point.store( 0 );
+        }
 
-    for (auto &worker : workers) {
-      worker.join();
-    }
-  }
-
-  void sync() {
-
-    synchronise = true;
-    while (sync_point.load() < workers.size())
-      ;
-    sync_point.store(0);
-    synchronise = false;
-  }
-
-private:
-  struct awaiter {
-    ThreadPool &tp;
-
-    constexpr bool await_ready() const noexcept { return false; }
-    constexpr void await_resume() const noexcept {}
-
-    std::coroutine_handle<>
-    await_suspend(std::coroutine_handle<> handle) const noexcept {
-      tp.enqueue(handle);
-      return std::noop_coroutine();
-    }
-  };
-  void wait() {
-    while (sync_point < workers.size())
-      ;
-    sync_point.store(0);
-  }
-
-  std::jthread add_worker() {
-    return std::jthread([&]() mutable {
+        std::jthread add_worker()
+        {
+            return std::jthread( [&]() mutable
+                                 {
       std::vector<std::coroutine_handle<>> buffer;
 
       ++sync_point;
       while (true) {
         {
-          {
             const lguard lg(mtx);
             buffer.swap(handles);
-          }
-          if (halt && buffer.size() == 0) {
-            break;
-          }
+            if (halt && buffer.size() == 0)
+            {
+                break;
+            }
         }
 
         for (auto handle : buffer) {
@@ -161,13 +184,12 @@ private:
         }
         buffer.clear();
         if (synchronise) {
-          sync_point.fetch_add(1);
+          ++sync_point;
         }
       }
 
-      sync_point.fetch_add(1);
-    });
-  }
-};
+      ++sync_point; } );
+        }
+    };
 } // namespace Async
 #endif // THREADPOOL_HPP
