@@ -67,6 +67,8 @@ void ThreadPoolBenchmark::benchmark( const size_t n_runs,
             }
 
             compute_stats();
+            //            scout() << "Mean: " << mean << ", SD: " << sd << "\n";
+
             results.emplace_back( name, task_name, thread_count, buffer_size, events.size(), n_runs, mean, sd );
         }
     }

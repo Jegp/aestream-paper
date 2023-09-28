@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <barrier>
+#include <condition_variable>
 #include <coroutine>
 #include <cstddef>
 #include <iostream>
@@ -23,6 +24,7 @@ namespace Async
     template <class T>
     using uptr = std::unique_ptr<T>;
     using lguard = std::lock_guard<std::mutex>;
+    using ulock = std::unique_lock<std::mutex>;
     struct CoroTask
     {
         struct promise_type
@@ -80,12 +82,19 @@ namespace Async
         uint worker_count{ 0 };
 
         // A rudimentary synchronisation point
-        auint sync_point{ 0 };
+        struct {
+            auint start;
+            auint end;
+
+        } sync;
+
+        // Condition variable for notifications
+        std::condition_variable cv;
 
       public:
         ThreadPool( const uint worker_count = std::thread::hardware_concurrency(),
                     const uint buffer_size = 1024 )
-            : worker_count{ worker_count }, sync_point{ 0 }
+            : worker_count{ worker_count }, sync{ 0, 0 }
         {
             handles.reserve( buffer_size );
 
@@ -95,23 +104,27 @@ namespace Async
             }
 
             // scout() << "Waiting for workers...\n";
-            wait();
+            while (sync.start.load() < worker_count);
             // scout() << "Threadpool running...\n";
         }
 
         ~ThreadPool() noexcept
         {
+
             // scout() << "Threadpool stopping...\n";
             stop();
             // scout() << "Waiting for workers...\n";
-            wait();
-            // scout() << "Threadpool exiting...\n";
+//             scout() << "Threadpool exiting...\n";
         }
 
         void enqueue( std::coroutine_handle<> handle )
         {
-            lguard lg{ mtx };
-            handles.emplace_back( handle );
+            {
+                lguard lk{ mtx };
+                handles.emplace_back( handle );
+            }
+//            std::cout << "Notifying...\n";
+            cv.notify_one();
         }
 
         auto schedule()
@@ -123,13 +136,8 @@ namespace Async
         {
             // Inform the workers that they should stop.
             halt = true;
-        }
-
-        void sync()
-        {
-            synchronise = true;
-            wait();
-            synchronise = false;
+            cv.notify_all();
+            while (sync.end.load() < worker_count);
         }
 
       private:
@@ -152,12 +160,6 @@ namespace Async
                 return std::noop_coroutine();
             }
         };
-        void wait()
-        {
-            while ( sync_point.load() < worker_count )
-                ;
-            sync_point.store( 0 );
-        }
 
         std::jthread add_worker()
         {
@@ -165,30 +167,31 @@ namespace Async
                                  {
       std::vector<std::coroutine_handle<>> buffer;
 
-      ++sync_point;
+      ++sync.start;
       while (true) {
         {
-            const lguard lg(mtx);
-            buffer.swap(handles);
-            if (halt && buffer.size() == 0)
+            ulock lk(mtx);
+            if (halt && handles.empty())
             {
                 break;
             }
+            cv.wait(lk, [&](){
+                return halt || !handles.empty();
+            });
+            buffer.swap(handles);
+//            std::cout << "Resuming...\n";
         }
 
         for (auto handle : buffer) {
-          handle.resume();
-          if (handle.done()) {
-            handle.destroy();
-          }
+            handle.resume();
+            if (handle.done()) {
+                handle.destroy();
+            }
         }
         buffer.clear();
-        if (synchronise) {
-          ++sync_point;
-        }
       }
 
-      ++sync_point; } );
+      ++sync.end; } );
         }
     };
 } // namespace Async
