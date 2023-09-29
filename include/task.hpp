@@ -43,7 +43,7 @@ struct Simple {
 struct Buffer {
   static void apply(const uint16_t &x, const uint16_t &y, Accumulator &T) {
     auto current = T.add_get(1);
-    if (current % 1000) {
+    if (current % 1000 == 0) {
       // Simulate 10us workload
       std::this_thread::sleep_for(std::chrono::microseconds(10));
     }

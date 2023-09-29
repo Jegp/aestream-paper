@@ -340,9 +340,8 @@ int main( int argc, char const* argv[] )
 
     size_t n_runs = 8;
 
-    // for (int i = 109; i < 114; i++) {
-    for ( int i = 50; i < 55; i++ )
-    {
+    for (int i = 50; i < 60; i++) {
+    //for ( int i = 75; i < 100; i++ ) {
         auto event_count = long( pow( 1.2, i ) );
         auto [events_simple, check_simple] =
             generate_events( event_count, Task::Simple::apply );

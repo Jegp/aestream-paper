@@ -74,21 +74,26 @@ template <std::movable T> struct ReturnObject {
     std::suspend_never yield_value(T value) {
       int index = current_awaiter++ % awaiters.size();
       // auto coro = std::coroutine_handle<promise_type>::from_promise(*this);
-      size_t attempt = 0;
-      while (awaiters[index]->value.has_value()) {
-        std::this_thread::yield();
-        index = current_awaiter++ % awaiters.size();
-        attempt++;
-        if (attempt >= awaiters.size()) {
-          break;
-        }
+      // size_t attempt = 0;
+      if (!awaiters[index]->value.has_value()) {
+        // std::this_thread::yield();
+      // } else {
+        awaiters[index]->value.emplace(std::move(value));
       }
+      // while (awaiters[index]->value.has_value()) {
+      // std::this_thread::yield();
+      // index = current_awaiter++ % awaiters.size();
+      // attempt++;
+      // if (attempt >= awaiters.size()) {
+      // if (attempt >= 4) {
+      // break;
+      // }
+      // }
 
       // awaiter->return_handle = coro;
       // while (awaiter->value.has_value()) {
       // std::this_thread::yield();
       // }
-      awaiters[index]->value.emplace(std::move(value));
       // awaiter->callback_lock.unlock();
       // do_dumb_stuff<T>(coro, awaiter);
       return std::suspend_never{};
