@@ -15,7 +15,7 @@
 #include "noop.hpp"
 #include "result.hpp"
 
-#include "benchmark/tp.hpp"
+#include "benchmark/threadpool.hpp"
 #include "task.hpp"
 
 // using namespace std::chrono_literals;

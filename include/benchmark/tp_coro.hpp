@@ -1,9 +1,8 @@
-#ifndef THREADPOOL_BENCHMARK_HPP
-#define THREADPOOL_BENCHMARK_HPP
+#ifndef THREADPOOL_CORO_BENCHMARK_HPP
+#define THREADPOOL_CORO_BENCHMARK_HPP
 
 #include "benchmark/base.hpp"
-#include "task.hpp"
-#include "threadpool.hpp"
+#include "threadpool_coro.hpp"
 #include <vector>
 
 using namespace Async;
@@ -18,15 +17,11 @@ public:
         const TaskType task,
         const std::string& task_name);
 
+    void prepare(const size_t event_count);
     void cleanup();
-    CoroTask run_task(const size_t& x, const size_t& y, Accumulator& acc);
-    std::tuple<size_t, size_t> benchmark(
-        size_t run,
-        size_t runs,
-        size_t thread_count,
-        std::vector<size_t> thread_counts,
-        size_t buffer_size,
-        std::vector<size_t> buffer_sizes,
+    CoroTask run_task(const size_t x, const size_t y, Accumulator& acc);
+    void benchmark(
+        const size_t n_runs,
         const std::vector<AER::Event>& events,
         const size_t checksum) override;
 
@@ -36,4 +31,4 @@ private:
     std::vector<size_t> thread_counts;
 };
 
-#endif // THREADPOOL_BENCHMARK_HPP
+#endif // THREADPOOL_CORO_BENCHMARK_HPP

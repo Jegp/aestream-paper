@@ -1,25 +1,24 @@
-#ifndef THREADPOOL_BENCHMARK_HPP
-#define THREADPOOL_BENCHMARK_HPP
+#ifndef CORO_THREADS_BENCHMARK_HPP
+#define CORO_THREADS_BENCHMARK_HPP
 
+#include "aer.hpp"
 #include "benchmark/base.hpp"
+#include "noop.hpp"
 #include "task.hpp"
-#include "threadpool.hpp"
 #include <vector>
 
-using namespace Async;
-
-class ThreadPoolBenchmark : public BaseBenchmark
+class CoroThreadBenchmark : public BaseBenchmark
 {
 public:
-    ThreadPoolBenchmark(
+    CoroThreadBenchmark(
         const std::string& name,
         const std::vector<size_t> buffer_sizes,
         const std::vector<size_t> thread_counts,
         const TaskType task,
         const std::string& task_name);
 
+    void prepare(const size_t event_count);
     void cleanup();
-    CoroTask run_task(const size_t& x, const size_t& y, Accumulator& acc);
     std::tuple<size_t, size_t> benchmark(
         size_t run,
         size_t runs,
@@ -31,9 +30,13 @@ public:
         const size_t checksum) override;
 
 private:
-    uptr<ThreadPool> tp{nullptr};
     std::vector<size_t> buffer_sizes;
     std::vector<size_t> thread_counts;
+
+    std::atomic<bool> done{false};
+    std::mutex awaiter_list_lock;
+    std::vector<std::jthread> threads{};
+    std::vector<ThreadPromise<AER::Event>*> awaiters{};
 };
 
-#endif // THREADPOOL_BENCHMARK_HPP
+#endif // CORO_THREADS_BENCHMARK_HPP

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PARGENERATOR_HPP
+#define PARGENERATOR_HPP
 
 #include <coroutine>
 #include <functional>
@@ -8,13 +9,20 @@
 namespace coroutinestd = std; // TODO: add support for clang
 
 template <typename PromiseType> struct GetPromise {
-  PromiseType *obj;
-  bool await_ready() { return false; } // False: call await_suspend
-  bool await_suspend(std::coroutine_handle<PromiseType> h) {
-    obj = &h.promise();
-    return false; // False: don't suspend
-  }
-  PromiseType *await_resume() { return obj; }
+    PromiseType* obj;
+    bool await_ready()
+    {
+        return false;
+    } // False: call await_suspend
+    bool await_suspend(std::coroutine_handle<PromiseType> h)
+    {
+        obj = &h.promise();
+        return false; // False: don't suspend
+    }
+    PromiseType* await_resume()
+    {
+        return obj;
+    }
 };
 
 template <typename PromiseType, std::movable T> struct ThreadAwaiter {
@@ -152,3 +160,5 @@ public:
 private:
   HandleState state;
 };
+
+#endif // PARGENERATOR_HPP

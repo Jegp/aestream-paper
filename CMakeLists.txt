@@ -12,25 +12,42 @@ set(CMAKE_CONFIGURATION_TYPES "Release" CACHE STRING "" FORCE)
 set(default_build_type Release)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 
-# include_directories("aestream/include")
+include_directories("aestream/include")
 # add_subdirectory("aestream")
 
 # Include dirs
-include_directories(include)
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # AEDAT4 processing
 add_executable(aestream-paper
 
+    include/aer.hpp
+    include/aedat.hpp
+    include/result.hpp
+    include/task.hpp
     include/noop.hpp
+    include/threads.hpp
+    include/threadpool.hpp
+    include/generator.hpp
+    include/threadpool_coro.hpp
     include/benchmark/base.hpp
+    include/benchmark/coro_threads.hpp
+    # include/benchmark/coro.hpp
+    include/benchmark/threadless.hpp
+    # include/benchmark/tp_coro.hpp
     include/benchmark/tp.hpp
 
     # src/blocking_queue.cpp
-    src/noop.cpp
+    # src/noop.cpp
     #src/benchmark.cpp
     src/benchmark/base.cpp
+    src/benchmark/coro_threads.cpp
+    # src/benchmark/coro.cpp
+    src/benchmark/threadless.cpp
+    # src/benchmark/tp_coro.cpp
     src/benchmark/tp.cpp
-    src/tp_main.cpp
+    # src/tp_main.cpp
+    src/benchmark.cpp
 )
 
 # add_executable(noop src/noop.cpp src/noop.hpp)

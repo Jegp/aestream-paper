@@ -1,5 +1,5 @@
-#ifndef THREADPOOL_HPP
-#define THREADPOOL_HPP
+#ifndef THREADPOOL_CORO_HPP
+#define THREADPOOL_CORO_HPP
 
 #include <atomic>
 #include <barrier>
@@ -198,4 +198,4 @@ namespace Async
         }
     };
 } // namespace Async
-#endif // THREADPOOL_HPP
+#endif // THREADPOOL_CORO_HPP

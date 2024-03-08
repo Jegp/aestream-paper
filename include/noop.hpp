@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NOOP_HPP
+#define NOOP_HPP
 
 #include <coroutine>
 #include <cstddef>
@@ -11,13 +12,21 @@
 #include "result.hpp"
 
 template <typename PromiseType> struct GetPromise {
-  PromiseType *obj;
-  bool await_ready() { return false; } // False: call await_suspend
-  bool await_suspend(std::coroutine_handle<PromiseType> h) {
-    obj = &h.promise();
-    return false; // False: don't suspend
-  }
-  PromiseType *await_resume() { return obj; }
+
+    PromiseType* obj;
+    bool await_ready()
+    {
+        return false;
+    } // False: call await_suspend
+    bool await_suspend(std::coroutine_handle<PromiseType> h)
+    {
+        obj = &h.promise();
+        return false; // False: don't suspend
+    }
+    PromiseType* await_resume()
+    {
+        return obj;
+    }
 };
 
 template <typename PromiseType, std::movable T> struct ThreadAwaiter {
@@ -206,3 +215,5 @@ void cleanup_coroutines(std::vector<std::jthread> &threads,
     thread.join();
   }
 }
+
+#endif // NOOP_HPP
